@@ -264,9 +264,3 @@ class MoleculeGraphicalizer(GraphicalizerMixin):
         for graph in graphs:
             smiles.append(Chem.MolToSmiles(graph_to_rdmol(graph)))
         return smiles
-
-
-class SmilesMolecularGraphicalizer(MoleculeGraphicalizer):
-    """Compatibility alias for CoCoGraPE-style naming."""
-
-    pass

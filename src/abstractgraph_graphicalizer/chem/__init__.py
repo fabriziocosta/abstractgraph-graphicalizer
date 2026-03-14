@@ -5,7 +5,6 @@ from abstractgraph_graphicalizer.chem.molecules import (
     CHEM_NODE_SCHEMA,
     MoleculeParseError,
     MoleculeGraphicalizer,
-    SmilesMolecularGraphicalizer,
     draw_graph,
     draw_molecule,
     graph_to_rdmol,
@@ -18,7 +17,6 @@ from abstractgraph_graphicalizer.chem.molecules import (
 
 __all__ = [
     "MoleculeGraphicalizer",
-    "SmilesMolecularGraphicalizer",
     "MoleculeParseError",
     "CHEM_NODE_SCHEMA",
     "CHEM_EDGE_SCHEMA",

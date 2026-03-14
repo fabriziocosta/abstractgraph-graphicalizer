@@ -1,8 +1,6 @@
 """RNA graphicalizers."""
 
 from abstractgraph_graphicalizer.rna.graphs import (
-    FastaRNAFoldGraphicalizer,
-    FastaSequenceGraphicalizer,
     RNAFoldGraphicalizer,
     RNASequenceGraphicalizer,
     SequenceReverseComplementGraphicalizer,
@@ -17,8 +15,6 @@ from abstractgraph_graphicalizer.rna.graphs import (
 __all__ = [
     "RNASequenceGraphicalizer",
     "RNAFoldGraphicalizer",
-    "FastaSequenceGraphicalizer",
-    "FastaRNAFoldGraphicalizer",
     "SequenceReverseComplementGraphicalizer",
     "sequence_dotbracket_to_graph",
     "seq_struct_to_graph",

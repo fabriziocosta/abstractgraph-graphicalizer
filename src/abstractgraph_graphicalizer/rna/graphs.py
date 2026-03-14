@@ -288,7 +288,3 @@ class SequenceReverseComplementGraphicalizer(GraphicalizerMixin):
             )
             for sequence in X
         ]
-
-
-FastaSequenceGraphicalizer = RNASequenceGraphicalizer
-FastaRNAFoldGraphicalizer = RNAFoldGraphicalizer
