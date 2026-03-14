@@ -8,8 +8,10 @@ Wave 1 includes:
 - attention-driven token/preimage induction migrated from `abstractgraph`
 - chemistry conversion from SMILES or SDF to labeled `networkx` graphs
 - drawing helpers for molecules and graph views
-- lightweight sequence and vector-neighborhood graphicalizers ported from CoCoGraPE
-- graph annotation and data-matrix graphicalizers ported from CoCoGraPE
+- lightweight sequence and vector-neighborhood graphicalizers
+- graph annotation and data-matrix graphicalizers
+- RNA sequence, dot-bracket, reverse-complement, and RNAfold graphicalizers
+- image scene-graph construction from precomputed segments with visualization
 
 Planned future backends include graph, image, RNA, and text graphicalizers.
 
@@ -35,9 +37,9 @@ This repo is part of the AbstractGraph ecosystem:
 - `src/abstractgraph_graphicalizer/graph/`
   sequence, vector-neighborhood, graph-annotation, and product graphicalizers
 - `src/abstractgraph_graphicalizer/image/`
-  reserved namespace for future image graphicalizers
+  image scene-graph graphicalizers
 - `src/abstractgraph_graphicalizer/rna/`
-  reserved namespace for future RNA graphicalizers
+  RNA sequence, structure, and reverse-complement graphicalizers
 - `src/abstractgraph_graphicalizer/text/`
   reserved namespace for future text graphicalizers
 
@@ -81,7 +83,7 @@ drop invalid records instead.
 
 ## Graph API
 
-The next focused CoCoGraPE port adds lightweight graphicalizers for sequence
+The graph backend includes lightweight graphicalizers for sequence
 and vector inputs:
 
 - `sequence_to_graph`
@@ -106,6 +108,29 @@ The data backend now includes:
 - `DataMatrixGraphicalizer`
 - `data_to_graph`
 - `FeatureCorrelationGraphicalizer`
+
+## RNA API
+
+The RNA backend now includes:
+
+- `sequence_dotbracket_to_graph`
+- `seq_struct_to_graph`
+- `seq_to_graph`
+- `rnafold_to_graphs`
+- `make_reverse_complement_graph`
+- `read_fasta`
+- `RNASequenceGraphicalizer`
+- `RNAFoldGraphicalizer`
+- `SequenceReverseComplementGraphicalizer`
+
+## Image API
+
+The image backend now includes:
+
+- `extract_geometric_relations_graph`
+- `visualize_scene_graph_on_image`
+- `load_images`
+- `ImageSegmentGraphicalizer`
 
 ## Validation
 
