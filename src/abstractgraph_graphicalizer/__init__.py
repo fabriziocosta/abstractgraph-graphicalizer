@@ -15,12 +15,24 @@ from abstractgraph_graphicalizer.chem import (
     smiles_list_to_graphs,
     smiles_to_graph,
 )
+from abstractgraph_graphicalizer.data import (
+    DataMatrixGraphicalizer,
+    FeatureCorrelationGraphicalizer,
+    data_matrix_to_feature_graph,
+    data_to_graph,
+)
 from abstractgraph_graphicalizer.graph import (
+    NodeEmbedderGraphGraphicalizer,
+    NormalizedLaplacianSVDGraphGraphicalizer,
+    ProductGraphGraphicalizer,
     MutualNearestNeighbourGraphicalizer,
     NearestNeighborVectorGraphicalizer,
     SequenceGraphicalizer,
     StringGraphicalizer,
+    annotate_normalized_laplacian_svd,
     mutual_nearest_neighbour_graph,
+    normalized_laplacian_svd,
+    product_graph,
     sequence_to_graph,
     string_to_graph,
 )
@@ -40,6 +52,10 @@ __all__ = [
     "graph_to_rdmol",
     "draw_molecule",
     "draw_graph",
+    "DataMatrixGraphicalizer",
+    "FeatureCorrelationGraphicalizer",
+    "data_matrix_to_feature_graph",
+    "data_to_graph",
     "SequenceGraphicalizer",
     "StringGraphicalizer",
     "sequence_to_graph",
@@ -47,4 +63,10 @@ __all__ = [
     "MutualNearestNeighbourGraphicalizer",
     "NearestNeighborVectorGraphicalizer",
     "mutual_nearest_neighbour_graph",
+    "normalized_laplacian_svd",
+    "annotate_normalized_laplacian_svd",
+    "NormalizedLaplacianSVDGraphGraphicalizer",
+    "NodeEmbedderGraphGraphicalizer",
+    "product_graph",
+    "ProductGraphGraphicalizer",
 ]

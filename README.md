@@ -9,6 +9,7 @@ Wave 1 includes:
 - chemistry conversion from SMILES or SDF to labeled `networkx` graphs
 - drawing helpers for molecules and graph views
 - lightweight sequence and vector-neighborhood graphicalizers ported from CoCoGraPE
+- graph annotation and data-matrix graphicalizers ported from CoCoGraPE
 
 Planned future backends include graph, image, RNA, and text graphicalizers.
 
@@ -29,8 +30,10 @@ This repo is part of the AbstractGraph ecosystem:
   molecule conversion and drawing helpers
 - `src/abstractgraph_graphicalizer/core/`
   shared graphicalizer protocols
+- `src/abstractgraph_graphicalizer/data/`
+  data-matrix and feature-correlation graphicalizers
 - `src/abstractgraph_graphicalizer/graph/`
-  sequence and vector-neighborhood graphicalizers
+  sequence, vector-neighborhood, graph-annotation, and product graphicalizers
 - `src/abstractgraph_graphicalizer/image/`
   reserved namespace for future image graphicalizers
 - `src/abstractgraph_graphicalizer/rna/`
@@ -88,6 +91,21 @@ and vector inputs:
 - `mutual_nearest_neighbour_graph`
 - `MutualNearestNeighbourGraphicalizer`
 - `NearestNeighborVectorGraphicalizer`
+- `normalized_laplacian_svd`
+- `annotate_normalized_laplacian_svd`
+- `NormalizedLaplacianSVDGraphGraphicalizer`
+- `NodeEmbedderGraphGraphicalizer`
+- `product_graph`
+- `ProductGraphGraphicalizer`
+
+## Data API
+
+The data backend now includes:
+
+- `data_matrix_to_feature_graph`
+- `DataMatrixGraphicalizer`
+- `data_to_graph`
+- `FeatureCorrelationGraphicalizer`
 
 ## Validation
 
