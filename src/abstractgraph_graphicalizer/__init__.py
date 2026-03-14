@@ -2,6 +2,8 @@
 
 from abstractgraph_graphicalizer.attention import AbstractGraphPreprocessor, ImageNodeClusterer
 from abstractgraph_graphicalizer.chem import (
+    CHEM_EDGE_SCHEMA,
+    CHEM_NODE_SCHEMA,
     MoleculeGraphicalizer,
     SmilesMolecularGraphicalizer,
     draw_graph,
@@ -19,6 +21,8 @@ __all__ = [
     "ImageNodeClusterer",
     "MoleculeGraphicalizer",
     "SmilesMolecularGraphicalizer",
+    "CHEM_NODE_SCHEMA",
+    "CHEM_EDGE_SCHEMA",
     "smiles_to_graph",
     "smiles_list_to_graphs",
     "sdf_to_graphs",

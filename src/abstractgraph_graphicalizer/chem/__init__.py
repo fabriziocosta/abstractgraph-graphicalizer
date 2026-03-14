@@ -1,6 +1,8 @@
 """Chemistry graphicalizers and helpers."""
 
 from abstractgraph_graphicalizer.chem.molecules import (
+    CHEM_EDGE_SCHEMA,
+    CHEM_NODE_SCHEMA,
     MoleculeParseError,
     MoleculeGraphicalizer,
     SmilesMolecularGraphicalizer,
@@ -18,6 +20,8 @@ __all__ = [
     "MoleculeGraphicalizer",
     "SmilesMolecularGraphicalizer",
     "MoleculeParseError",
+    "CHEM_NODE_SCHEMA",
+    "CHEM_EDGE_SCHEMA",
     "smiles_to_graph",
     "smiles_list_to_graphs",
     "sdf_to_graphs",

@@ -51,6 +51,30 @@ Chemistry extras:
 python -m pip install -e '.[chem]'
 ```
 
+## Chemistry API
+
+Main entrypoints:
+
+- `smiles_to_graph`
+- `smiles_list_to_graphs`
+- `smi_to_graphs`
+- `sdf_to_graphs`
+- `rdmol_to_graph`
+- `graph_to_rdmol`
+- `draw_molecule`
+- `draw_graph`
+- `MoleculeGraphicalizer`
+
+Canonical chemistry schema:
+
+- node `label`: atomic symbol
+- edge `label`: `single`, `double`, `triple`, or `aromatic`
+- extra node and edge metadata is documented in
+  [docs/CHEMISTRY.md](docs/CHEMISTRY.md)
+
+Batch helpers use `on_error="raise"` by default. Set `on_error="skip"` to
+drop invalid records instead.
+
 ## Validation
 
 ```bash
