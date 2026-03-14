@@ -8,6 +8,7 @@ Wave 1 includes:
 - attention-driven token/preimage induction migrated from `abstractgraph`
 - chemistry conversion from SMILES or SDF to labeled `networkx` graphs
 - drawing helpers for molecules and graph views
+- lightweight sequence and vector-neighborhood graphicalizers ported from CoCoGraPE
 
 Planned future backends include graph, image, RNA, and text graphicalizers.
 
@@ -29,7 +30,7 @@ This repo is part of the AbstractGraph ecosystem:
 - `src/abstractgraph_graphicalizer/core/`
   shared graphicalizer protocols
 - `src/abstractgraph_graphicalizer/graph/`
-  reserved namespace for future graph graphicalizers
+  sequence and vector-neighborhood graphicalizers
 - `src/abstractgraph_graphicalizer/image/`
   reserved namespace for future image graphicalizers
 - `src/abstractgraph_graphicalizer/rna/`
@@ -74,6 +75,19 @@ Canonical chemistry schema:
 
 Batch helpers use `on_error="raise"` by default. Set `on_error="skip"` to
 drop invalid records instead.
+
+## Graph API
+
+The next focused CoCoGraPE port adds lightweight graphicalizers for sequence
+and vector inputs:
+
+- `sequence_to_graph`
+- `string_to_graph`
+- `SequenceGraphicalizer`
+- `StringGraphicalizer`
+- `mutual_nearest_neighbour_graph`
+- `MutualNearestNeighbourGraphicalizer`
+- `NearestNeighborVectorGraphicalizer`
 
 ## Validation
 

@@ -15,6 +15,15 @@ from abstractgraph_graphicalizer.chem import (
     smiles_list_to_graphs,
     smiles_to_graph,
 )
+from abstractgraph_graphicalizer.graph import (
+    MutualNearestNeighbourGraphicalizer,
+    NearestNeighborVectorGraphicalizer,
+    SequenceGraphicalizer,
+    StringGraphicalizer,
+    mutual_nearest_neighbour_graph,
+    sequence_to_graph,
+    string_to_graph,
+)
 
 __all__ = [
     "AbstractGraphPreprocessor",
@@ -31,4 +40,11 @@ __all__ = [
     "graph_to_rdmol",
     "draw_molecule",
     "draw_graph",
+    "SequenceGraphicalizer",
+    "StringGraphicalizer",
+    "sequence_to_graph",
+    "string_to_graph",
+    "MutualNearestNeighbourGraphicalizer",
+    "NearestNeighborVectorGraphicalizer",
+    "mutual_nearest_neighbour_graph",
 ]
