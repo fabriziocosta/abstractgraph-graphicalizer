@@ -10,6 +10,15 @@ on the earlier step: how to take a molecule, a token sequence, a data matrix,
 an RNA structure, or segmented image objects and turn that input into a graph
 with meaningful node and edge attributes.
 
+Focused backend docs:
+
+- [docs/ATTENTION.md](docs/ATTENTION.md)
+- [docs/CHEMISTRY.md](docs/CHEMISTRY.md)
+- [docs/GRAPH.md](docs/GRAPH.md)
+- [docs/DATA.md](docs/DATA.md)
+- [docs/RNA.md](docs/RNA.md)
+- [docs/IMAGE.md](docs/IMAGE.md)
+
 ## Ecosystem
 
 This repo is part of the AbstractGraph ecosystem:
@@ -29,7 +38,7 @@ attention patterns. It is meant for inputs such as per-token feature matrices,
 embedding sequences, or other array-like instances where each row represents a
 token or local part of an example. The main entrypoints are
 `AbstractGraphPreprocessor` and `ImageNodeClusterer` in
-`abstractgraph_graphicalizer.attention`.
+`abstractgraph_graphicalizer.attention`. See [docs/ATTENTION.md](docs/ATTENTION.md).
 
 ### Chemistry graphicalizers
 
@@ -55,6 +64,7 @@ clear combinatorial or geometric interpretation. The main entrypoints live in
 `abstractgraph_graphicalizer.graph`, including `sequence_to_graph`,
 `StringGraphicalizer`, `MutualNearestNeighbourGraphicalizer`,
 `NormalizedLaplacianSVDGraphGraphicalizer`, and `ProductGraphGraphicalizer`.
+See [docs/GRAPH.md](docs/GRAPH.md).
 
 ### Data graphicalizers
 
@@ -65,7 +75,8 @@ can be used to induce graph structure. Depending on the use case, it can create
 feature-dependency graphs directly from a matrix or fit a correlation template
 and instantiate sample-specific graphs. The main entrypoints are
 `data_matrix_to_feature_graph`, `DataMatrixGraphicalizer`, `data_to_graph`, and
-`FeatureCorrelationGraphicalizer` in `abstractgraph_graphicalizer.data`.
+`FeatureCorrelationGraphicalizer` in `abstractgraph_graphicalizer.data`. See
+[docs/DATA.md](docs/DATA.md).
 
 ### RNA graphicalizers
 
@@ -78,7 +89,7 @@ and secondary-structure workflows rather than general text processing. The main
 entrypoints are `sequence_dotbracket_to_graph`, `seq_struct_to_graph`,
 `RNASequenceGraphicalizer`, `RNAFoldGraphicalizer`, and
 `SequenceReverseComplementGraphicalizer` in
-`abstractgraph_graphicalizer.rna`.
+`abstractgraph_graphicalizer.rna`. See [docs/RNA.md](docs/RNA.md).
 
 ### Image graphicalizers
 
@@ -91,7 +102,7 @@ focuses on graph construction, visualization, and loading utilities around
 segmented image inputs. The main entrypoints are
 `extract_geometric_relations_graph`, `ImageSegmentGraphicalizer`,
 `visualize_scene_graph_on_image`, and `load_images` in
-`abstractgraph_graphicalizer.image`.
+`abstractgraph_graphicalizer.image`. See [docs/IMAGE.md](docs/IMAGE.md).
 
 ## Package Layout
 
