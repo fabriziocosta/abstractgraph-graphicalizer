@@ -72,6 +72,22 @@ The bundled dataset is intentionally a small Git-safe subset for examples and
 tests. Larger local assay exports should live in `data-local/PUBCHEM/` or an
 external directory pointed to by `ABSTRACTGRAPH_PUBCHEM_ROOT`.
 
+To inspect the currently resolved root and the available assay file sizes:
+
+```python
+loader = PubChemLoader()
+for assay in loader.list_assays()[:5]:
+    print(
+        assay.assay_id,
+        assay.active_molecule_count,
+        assay.inactive_molecule_count,
+        assay.total_molecule_count,
+        assay.active_size_bytes,
+        assay.inactive_size_bytes,
+        assay.total_size_bytes,
+    )
+```
+
 Typical usage:
 
 ```python

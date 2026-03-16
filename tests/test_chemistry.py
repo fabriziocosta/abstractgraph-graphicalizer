@@ -122,6 +122,37 @@ class ChemistryTest(unittest.TestCase):
             with patch.dict("os.environ", {"ABSTRACTGRAPH_PUBCHEM_ROOT": tmpdir}, clear=False):
                 self.assertEqual(default_pubchem_root(), Path(tmpdir).resolve())
 
+    def test_pubchem_loader_lists_assay_sizes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            active_path = root / "AID1706_active.sdf"
+            inactive_path = root / "AID1706_inactive.sdf"
+
+            active_writer = Chem.SDWriter(str(active_path))
+            active_writer.write(Chem.MolFromSmiles("CCO"))
+            active_writer.close()
+
+            inactive_writer = Chem.SDWriter(str(inactive_path))
+            inactive_writer.write(Chem.MolFromSmiles("C=C"))
+            inactive_writer.close()
+
+            loader = PubChemLoader(root)
+            summaries = loader.list_assays()
+            self.assertEqual(len(summaries), 1)
+            summary = summaries[0]
+            self.assertEqual(summary.assay_id, "1706")
+            self.assertEqual(summary.active_path, active_path)
+            self.assertEqual(summary.inactive_path, inactive_path)
+            self.assertGreater(summary.active_size_bytes, 0)
+            self.assertGreater(summary.inactive_size_bytes, 0)
+            self.assertEqual(summary.active_molecule_count, 1)
+            self.assertEqual(summary.inactive_molecule_count, 1)
+            self.assertEqual(summary.total_molecule_count, 2)
+            self.assertEqual(
+                summary.total_size_bytes,
+                summary.active_size_bytes + summary.inactive_size_bytes,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

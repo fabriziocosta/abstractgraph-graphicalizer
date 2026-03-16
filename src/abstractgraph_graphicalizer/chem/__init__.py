@@ -17,6 +17,7 @@ from abstractgraph_graphicalizer.chem.molecules import (
 )
 from abstractgraph_graphicalizer.chem.pubchem import (
     PubChemAssayPaths,
+    PubChemAssaySummary,
     PubChemLoader,
     bundled_pubchem_root,
     default_pubchem_root,
@@ -30,6 +31,7 @@ __all__ = [
     "CHEM_NODE_SCHEMA",
     "CHEM_EDGE_SCHEMA",
     "PubChemAssayPaths",
+    "PubChemAssaySummary",
     "PubChemLoader",
     "bundled_pubchem_root",
     "default_pubchem_root",

@@ -67,6 +67,15 @@ def _take_limit(graph_iter: Iterator[nx.Graph], limit: int | None) -> list[nx.Gr
     return graphs
 
 
+def _count_sdf_records(path: Path) -> int:
+    """Quickly count SDF records by scanning for `$$$$` separators."""
+    count = 0
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            count += chunk.count(b"$$$$")
+    return count
+
+
 @dataclass(frozen=True)
 class PubChemAssayPaths:
     """Resolved file paths for a local PubChem assay export."""
@@ -74,6 +83,27 @@ class PubChemAssayPaths:
     assay_id: str
     active_path: Path
     inactive_path: Path
+
+
+@dataclass(frozen=True)
+class PubChemAssaySummary:
+    """Summary metadata for one locally available PubChem assay export."""
+
+    assay_id: str
+    active_path: Path
+    inactive_path: Path
+    active_size_bytes: int
+    inactive_size_bytes: int
+    active_molecule_count: int
+    inactive_molecule_count: int
+
+    @property
+    def total_size_bytes(self) -> int:
+        return self.active_size_bytes + self.inactive_size_bytes
+
+    @property
+    def total_molecule_count(self) -> int:
+        return self.active_molecule_count + self.inactive_molecule_count
 
 
 class PubChemLoader:
@@ -102,6 +132,24 @@ class PubChemLoader:
             if (self.root / f"{path.name.split('_')[0]}_inactive.sdf").exists()
         }
         return sorted(assay_ids)
+
+    def list_assays(self) -> list[PubChemAssaySummary]:
+        """List locally available paired assay exports with sizes and record counts."""
+        summaries: list[PubChemAssaySummary] = []
+        for assay_id in self.available_assay_ids():
+            paths = self.resolve_paths(assay_id)
+            summaries.append(
+                PubChemAssaySummary(
+                    assay_id=assay_id,
+                    active_path=paths.active_path,
+                    inactive_path=paths.inactive_path,
+                    active_size_bytes=paths.active_path.stat().st_size,
+                    inactive_size_bytes=paths.inactive_path.stat().st_size,
+                    active_molecule_count=_count_sdf_records(paths.active_path),
+                    inactive_molecule_count=_count_sdf_records(paths.inactive_path),
+                )
+            )
+        return summaries
 
     def resolve_paths(self, assay_id: str | int) -> PubChemAssayPaths:
         normalized = _normalize_assay_id(assay_id)
