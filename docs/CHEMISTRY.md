@@ -53,9 +53,24 @@ graphs.
 - `AID<assay_id>_active.sdf`
 - `AID<assay_id>_inactive.sdf`
 
-The canonical shared location is:
+The bundled Git-tracked sample location is:
 
 - `abstractgraph-graphicalizer/data/PUBCHEM/`
+
+For larger local assay collections, the preferred ignored location is:
+
+- `abstractgraph-graphicalizer/data-local/PUBCHEM/`
+
+Resolution order is:
+
+1. the explicit `root=` passed to `PubChemLoader(...)`
+2. `ABSTRACTGRAPH_PUBCHEM_ROOT`
+3. `abstractgraph-graphicalizer/data-local/PUBCHEM/`
+4. `abstractgraph-graphicalizer/data/PUBCHEM/`
+
+The bundled dataset is intentionally a small Git-safe subset for examples and
+tests. Larger local assay exports should live in `data-local/PUBCHEM/` or an
+external directory pointed to by `ABSTRACTGRAPH_PUBCHEM_ROOT`.
 
 Typical usage:
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import networkx as nx
 
@@ -11,9 +12,13 @@ from abstractgraph_graphicalizer.chem import (
     CHEM_NODE_SCHEMA,
     MoleculeParseError,
     PubChemLoader,
+    bundled_pubchem_root,
+    default_pubchem_root,
     draw_graph,
     draw_molecule,
     graph_to_rdmol,
+    local_pubchem_root,
+    pubchem_search_roots,
     sdf_to_graphs,
     smi_to_graphs,
     smiles_list_to_graphs,
@@ -106,6 +111,16 @@ class ChemistryTest(unittest.TestCase):
             graphs, targets = loader.load(624249)
             self.assertEqual(len(graphs), 3)
             self.assertEqual(targets, [0, 1, 1])
+
+    def test_pubchem_loader_root_resolution_helpers(self) -> None:
+        roots = pubchem_search_roots()
+        self.assertIn(local_pubchem_root().resolve(), roots)
+        self.assertIn(bundled_pubchem_root().resolve(), roots)
+        self.assertEqual(default_pubchem_root(), local_pubchem_root().resolve())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict("os.environ", {"ABSTRACTGRAPH_PUBCHEM_ROOT": tmpdir}, clear=False):
+                self.assertEqual(default_pubchem_root(), Path(tmpdir).resolve())
 
 
 if __name__ == "__main__":

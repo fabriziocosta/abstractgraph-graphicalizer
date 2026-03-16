@@ -13,3 +13,4 @@ dist/
 htmlcov/
 .ipynb_checkpoints/
 **/.ipynb_backups/
+data-local/

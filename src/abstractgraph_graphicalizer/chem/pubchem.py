@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
@@ -11,9 +12,39 @@ import networkx as nx
 from abstractgraph_graphicalizer.chem.molecules import sdf_to_graphs
 
 
-def default_pubchem_root() -> Path:
-    """Return the canonical local PubChem export directory."""
+def bundled_pubchem_root() -> Path:
+    """Return the tracked bundled PubChem dataset root."""
     return Path(__file__).resolve().parents[3] / "data" / "PUBCHEM"
+
+
+def local_pubchem_root() -> Path:
+    """Return the ignored local PubChem dataset root."""
+    return Path(__file__).resolve().parents[3] / "data-local" / "PUBCHEM"
+
+
+def pubchem_search_roots() -> list[Path]:
+    """Return candidate PubChem dataset roots in preference order."""
+    roots: list[Path] = []
+    env_root = os.environ.get("ABSTRACTGRAPH_PUBCHEM_ROOT")
+    if env_root:
+        roots.append(Path(env_root).expanduser())
+    roots.extend([local_pubchem_root(), bundled_pubchem_root()])
+    seen: set[Path] = set()
+    ordered: list[Path] = []
+    for root in roots:
+        resolved = root.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            ordered.append(resolved)
+    return ordered
+
+
+def default_pubchem_root() -> Path:
+    """Return the preferred local PubChem export directory."""
+    for root in pubchem_search_roots():
+        if root.exists():
+            return root
+    return bundled_pubchem_root()
 
 
 def _normalize_assay_id(assay_id: str | int) -> str:

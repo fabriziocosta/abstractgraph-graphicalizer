@@ -15,7 +15,14 @@ from abstractgraph_graphicalizer.chem.molecules import (
     smiles_list_to_graphs,
     smiles_to_graph,
 )
-from abstractgraph_graphicalizer.chem.pubchem import PubChemAssayPaths, PubChemLoader, default_pubchem_root
+from abstractgraph_graphicalizer.chem.pubchem import (
+    PubChemAssayPaths,
+    PubChemLoader,
+    bundled_pubchem_root,
+    default_pubchem_root,
+    local_pubchem_root,
+    pubchem_search_roots,
+)
 
 __all__ = [
     "MoleculeGraphicalizer",
@@ -24,7 +31,10 @@ __all__ = [
     "CHEM_EDGE_SCHEMA",
     "PubChemAssayPaths",
     "PubChemLoader",
+    "bundled_pubchem_root",
     "default_pubchem_root",
+    "local_pubchem_root",
+    "pubchem_search_roots",
     "smiles_to_graph",
     "smiles_list_to_graphs",
     "sdf_to_graphs",
