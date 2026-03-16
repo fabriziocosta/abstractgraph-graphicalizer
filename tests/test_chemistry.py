@@ -112,6 +112,22 @@ class ChemistryTest(unittest.TestCase):
             self.assertEqual(len(graphs), 3)
             self.assertEqual(targets, [0, 1, 1])
 
+            active_graphs, inactive_graphs = loader.load_split(624249, limit=1)
+            self.assertEqual(len(active_graphs), 1)
+            self.assertEqual(len(inactive_graphs), 1)
+
+            graphs, targets = loader.load(624249, limit=1)
+            self.assertEqual(len(graphs), 2)
+            self.assertEqual(targets, [0, 1])
+
+            active_graphs, inactive_graphs = loader.load_split(
+                624249,
+                limit=1,
+                limit_active=2,
+            )
+            self.assertEqual(len(active_graphs), 2)
+            self.assertEqual(len(inactive_graphs), 1)
+
     def test_pubchem_loader_root_resolution_helpers(self) -> None:
         roots = pubchem_search_roots()
         self.assertIn(local_pubchem_root().resolve(), roots)
@@ -152,6 +168,29 @@ class ChemistryTest(unittest.TestCase):
                 summary.total_size_bytes,
                 summary.active_size_bytes + summary.inactive_size_bytes,
             )
+
+    def test_pubchem_loader_formats_assay_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            for assay_id, smiles in {
+                "1706": ("CCO", "C=C"),
+                "2631": ("CCN", "C#N"),
+            }.items():
+                active_path = root / f"AID{assay_id}_active.sdf"
+                inactive_path = root / f"AID{assay_id}_inactive.sdf"
+                active_writer = Chem.SDWriter(str(active_path))
+                active_writer.write(Chem.MolFromSmiles(smiles[0]))
+                active_writer.close()
+                inactive_writer = Chem.SDWriter(str(inactive_path))
+                inactive_writer.write(Chem.MolFromSmiles(smiles[1]))
+                inactive_writer.close()
+
+            loader = PubChemLoader(root)
+            table = loader.format_assay_table()
+            self.assertIn("assay_id", table)
+            self.assertIn("1706", table)
+            self.assertIn("2631", table)
+            self.assertIn("total_mols", table)
 
 
 if __name__ == "__main__":

@@ -76,16 +76,7 @@ To inspect the currently resolved root and the available assay file sizes:
 
 ```python
 loader = PubChemLoader()
-for assay in loader.list_assays()[:5]:
-    print(
-        assay.assay_id,
-        assay.active_molecule_count,
-        assay.inactive_molecule_count,
-        assay.total_molecule_count,
-        assay.active_size_bytes,
-        assay.inactive_size_bytes,
-        assay.total_size_bytes,
-    )
+print(loader.format_assay_table())
 ```
 
 Typical usage:

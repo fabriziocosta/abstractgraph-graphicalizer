@@ -151,6 +151,37 @@ class PubChemLoader:
             )
         return summaries
 
+    def format_assay_table(self, *, sort_by: str = "total_molecule_count", reverse: bool = True) -> str:
+        """Return a formatted assay summary table for the current root."""
+        summaries = self.list_assays()
+        valid_sort_keys = {
+            "assay_id",
+            "active_molecule_count",
+            "inactive_molecule_count",
+            "total_molecule_count",
+            "active_size_bytes",
+            "inactive_size_bytes",
+            "total_size_bytes",
+        }
+        if sort_by not in valid_sort_keys:
+            raise ValueError(f"sort_by must be one of {sorted(valid_sort_keys)}")
+        summaries = sorted(summaries, key=lambda assay: getattr(assay, sort_by), reverse=reverse)
+        lines = [
+            "{:<10} {:>12} {:>14} {:>11} {:>10}".format(
+                "assay_id", "active_mols", "inactive_mols", "total_mols", "total_mb"
+            ),
+            "-" * 64,
+        ]
+        for assay in summaries:
+            lines.append(
+                f"{assay.assay_id:<10} "
+                f"{assay.active_molecule_count:>12} "
+                f"{assay.inactive_molecule_count:>14} "
+                f"{assay.total_molecule_count:>11} "
+                f"{assay.total_size_bytes / 1024 / 1024:>10.2f}"
+            )
+        return "\n".join(lines)
+
     def resolve_paths(self, assay_id: str | int) -> PubChemAssayPaths:
         normalized = _normalize_assay_id(assay_id)
         active_path = self.root / f"AID{normalized}_active.sdf"
@@ -183,10 +214,15 @@ class PubChemLoader:
         self,
         assay_id: str | int,
         *,
+        limit: int | None = None,
         limit_active: int | None = None,
         limit_inactive: int | None = None,
     ) -> tuple[list[nx.Graph], list[nx.Graph]]:
         paths = self.resolve_paths(assay_id)
+        if limit_active is None:
+            limit_active = limit
+        if limit_inactive is None:
+            limit_inactive = limit
         active_graphs = _take_limit(
             sdf_to_graphs(paths.active_path, on_error=self.on_error),
             limit_active,
@@ -214,11 +250,13 @@ class PubChemLoader:
         self,
         assay_id: str | int,
         *,
+        limit: int | None = None,
         limit_active: int | None = None,
         limit_inactive: int | None = None,
     ) -> tuple[list[nx.Graph], list[int]]:
         active_graphs, inactive_graphs = self.load_split(
             assay_id,
+            limit=limit,
             limit_active=limit_active,
             limit_inactive=limit_inactive,
         )
