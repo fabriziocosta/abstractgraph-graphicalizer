@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, Sequence
 
+import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 
@@ -241,6 +242,47 @@ def draw_graph(graph: nx.Graph, *, ax=None):
     nx.draw_networkx_edge_labels(graph, pos=pos, ax=ax, edge_labels=edge_labels)
     ax.set_axis_off()
     return ax
+
+
+def draw_molecules(
+    molecules: Sequence[object],
+    *,
+    n_graphs_per_line: int = 4,
+    titles: Sequence[str] | None = None,
+    size: tuple[int, int] = (3, 2),
+    show: bool = True,
+):
+    """Draw a grid of RDKit molecules or molecule graphs.
+
+    Args:
+        molecules: Sequence of RDKit mols or NetworkX molecule graphs.
+        n_graphs_per_line: Number of items per row.
+        titles: Optional per-molecule titles.
+        size: Size of each subplot in inches.
+        show: If True, call ``plt.show()``.
+
+    Returns:
+        Matplotlib figure containing the image grid.
+    """
+    molecules = list(molecules)
+    n = len(molecules)
+    cols = max(1, int(n_graphs_per_line))
+    rows = max(1, (n + cols - 1) // cols)
+    fig, axes = plt.subplots(rows, cols, figsize=(size[0] * cols, size[1] * rows))
+    axes_list = list(np.atleast_1d(axes).ravel())
+    for idx, ax in enumerate(axes_list):
+        if idx >= n:
+            ax.axis("off")
+            continue
+        image = draw_molecule(molecules[idx], size=(500, 300))
+        ax.imshow(np.asarray(image))
+        ax.axis("off")
+        if titles is not None and idx < len(titles):
+            ax.set_title(str(titles[idx]))
+    fig.tight_layout()
+    if show:
+        plt.show()
+    return fig
 
 
 class MoleculeGraphicalizer(GraphicalizerMixin):

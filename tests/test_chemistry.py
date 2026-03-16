@@ -10,6 +10,7 @@ from abstractgraph_graphicalizer.chem import (
     CHEM_EDGE_SCHEMA,
     CHEM_NODE_SCHEMA,
     MoleculeParseError,
+    PubChemLoader,
     draw_graph,
     draw_molecule,
     graph_to_rdmol,
@@ -74,6 +75,37 @@ class ChemistryTest(unittest.TestCase):
             ax = draw_graph(graphs[1])
             self.assertTrue(hasattr(image, "size"))
             self.assertTrue(hasattr(ax, "set_axis_off"))
+
+    def test_pubchem_loader_reads_active_and_inactive_exports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            active_path = root / "AID624249_active.sdf"
+            inactive_path = root / "AID624249_inactive.sdf"
+
+            active_writer = Chem.SDWriter(str(active_path))
+            active_writer.write(Chem.MolFromSmiles("CCO"))
+            active_writer.write(Chem.MolFromSmiles("CCN"))
+            active_writer.close()
+
+            inactive_writer = Chem.SDWriter(str(inactive_path))
+            inactive_writer.write(Chem.MolFromSmiles("C=C"))
+            inactive_writer.close()
+
+            loader = PubChemLoader(root)
+            paths = loader.resolve_paths("AID624249")
+            self.assertEqual(paths.assay_id, "624249")
+
+            active_graphs, inactive_graphs = loader.load_split(624249)
+            self.assertEqual(len(active_graphs), 2)
+            self.assertEqual(len(inactive_graphs), 1)
+            self.assertEqual(active_graphs[0].graph["pubchem_activity"], "active")
+            self.assertEqual(inactive_graphs[0].graph["pubchem_activity"], "inactive")
+            self.assertEqual(active_graphs[0].graph["target"], 1)
+            self.assertEqual(inactive_graphs[0].graph["target"], 0)
+
+            graphs, targets = loader.load(624249)
+            self.assertEqual(len(graphs), 3)
+            self.assertEqual(targets, [0, 1, 1])
 
 
 if __name__ == "__main__":
