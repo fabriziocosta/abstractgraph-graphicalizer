@@ -1,6 +1,4 @@
 """Graphicalizers for converting raw data into labeled NetworkX graphs."""
-
-from abstractgraph_graphicalizer.attention import AbstractGraphPreprocessor, ImageNodeClusterer
 from abstractgraph_graphicalizer.chem import (
     CHEM_EDGE_SCHEMA,
     CHEM_NODE_SCHEMA,
@@ -53,6 +51,17 @@ from abstractgraph_graphicalizer.rna import (
     sequence_dotbracket_to_graph,
 )
 
+_ATTENTION_EXPORTS = {
+    "AbstractGraphPreprocessor",
+    "ImageNodeClusterer",
+}
+
+_attention_import_error = None
+try:
+    from abstractgraph_graphicalizer.attention import AbstractGraphPreprocessor, ImageNodeClusterer
+except (ImportError, OSError) as exc:
+    _attention_import_error = exc
+
 __all__ = [
     "AbstractGraphPreprocessor",
     "ImageNodeClusterer",
@@ -98,3 +107,11 @@ __all__ = [
     "visualize_scene_graph_on_image",
     "load_images",
 ]
+
+
+def __getattr__(name: str):
+    if name in _ATTENTION_EXPORTS and _attention_import_error is not None:
+        raise ImportError(
+            "Attention components require optional torch dependencies that could not be imported."
+        ) from _attention_import_error
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
