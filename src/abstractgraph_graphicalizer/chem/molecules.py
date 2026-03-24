@@ -68,6 +68,36 @@ _BOND_LABEL_TO_TYPE = {
     "2": "DOUBLE",
     "3": "TRIPLE",
     "4": "AROMATIC",
+    "singlebond": "SINGLE",
+    "doublebond": "DOUBLE",
+    "triplebond": "TRIPLE",
+    "aromaticbond": "AROMATIC",
+    "single bond": "SINGLE",
+    "double bond": "DOUBLE",
+    "triple bond": "TRIPLE",
+    "aromatic bond": "AROMATIC",
+}
+_LEGACY_BOND_LABEL_MAP = {
+    "1": "single",
+    "2": "double",
+    "3": "triple",
+    "4": "aromatic",
+    "single": "single",
+    "double": "double",
+    "triple": "triple",
+    "aromatic": "aromatic",
+    "singlebond": "single",
+    "doublebond": "double",
+    "triplebond": "triple",
+    "aromaticbond": "aromatic",
+    "single bond": "single",
+    "double bond": "double",
+    "triple bond": "triple",
+    "aromatic bond": "aromatic",
+    "singlebondtype": "single",
+    "doublebondtype": "double",
+    "triplebondtype": "triple",
+    "aromaticbondtype": "aromatic",
 }
 
 
@@ -94,6 +124,38 @@ def _bond_type_from_label(label: object):
     if bond_type_name is None:
         raise MoleculeParseError("Unsupported bond label", str(label))
     return getattr(Chem.BondType, bond_type_name)
+
+
+def normalize_bond_label(label: object, *, aromatic: bool = False) -> str:
+    """Map legacy chemistry edge labels to the canonical graphicalizer schema."""
+    if aromatic:
+        return "aromatic"
+    normalized = str(label).strip()
+    if not normalized:
+        return "single"
+    mapped = _LEGACY_BOND_LABEL_MAP.get(normalized.lower())
+    if mapped is not None:
+        return mapped
+    raise MoleculeParseError("Unsupported bond label", normalized)
+
+
+def normalize_graph_schema(graph: nx.Graph, *, copy: bool = True) -> nx.Graph:
+    """Return a graph with canonical chemistry edge labels and metadata."""
+    normalized_graph = graph.copy() if copy else graph
+    for _, _, data in normalized_graph.edges(data=True):
+        label = normalize_bond_label(data.get("label", "single"), aromatic=bool(data.get("aromatic", False)))
+        data["label"] = label
+        if "bond_order" not in data:
+            data["bond_order"] = {
+                "single": 1.0,
+                "double": 2.0,
+                "triple": 3.0,
+                "aromatic": 1.5,
+            }[label]
+        if "bond_type" not in data:
+            data["bond_type"] = _BOND_LABEL_TO_TYPE[label]
+        data["aromatic"] = bool(data.get("aromatic", False) or label == "aromatic")
+    return normalized_graph
 
 
 def rdmol_to_graph(mol) -> nx.Graph:
@@ -194,6 +256,7 @@ def smi_to_graphs(path: str | Path, *, on_error: str = "raise") -> Iterator[nx.G
 def graph_to_rdmol(graph: nx.Graph):
     """Convert a labeled NetworkX graph back to an RDKit molecule."""
     _require_rdkit()
+    graph = normalize_graph_schema(graph, copy=True)
     mol = Chem.RWMol(Chem.MolFromSmiles(""))
     atom_index: dict[int, int] = {}
 

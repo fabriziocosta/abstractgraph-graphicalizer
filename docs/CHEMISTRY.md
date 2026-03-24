@@ -3,8 +3,9 @@
 `abstractgraph_graphicalizer.chem` converts RDKit molecules, SMILES, `.smi`,
 and `.sdf` inputs into labeled `networkx.Graph` objects.
 
-It also includes a small `PubChemLoader` wrapper for local PubChem assay
-exports stored as paired active/inactive SDF files.
+It also includes maintained dataset helpers for local PubChem assay exports and
+local ZINC CSV exports, including graph-corpus caching and notebook-scale
+supervised dataset shaping.
 
 ## Canonical node attributes
 
@@ -30,6 +31,8 @@ When available, graph metadata is attached under `graph.graph`:
 - `pubchem_activity`: `active` or `inactive` for graphs loaded through
   `PubChemLoader`
 - `target`: binary target label for graphs loaded through `PubChemLoader`
+- `zinc_dataset`: dataset identifier for graphs loaded through `ZINCLoader`
+- any non-null CSV column from a ZINC row is copied onto `graph.graph`
 
 ## Error handling
 
@@ -44,7 +47,8 @@ Invalid `on_error` modes raise `ValueError`.
 
 `graph_to_rdmol` supports the canonical edge labels above and also accepts the
 legacy numeric labels `1`, `2`, `3`, and `4` for compatibility with older
-graphs.
+graphs. `normalize_graph_schema(...)` upgrades legacy graph edge labels to the
+canonical schema in-memory.
 
 ## PubChem Assay Exports
 
@@ -93,3 +97,74 @@ If you want the two classes separately:
 ```python
 active_graphs, inactive_graphs = loader.load_split("624249")
 ```
+
+For notebook-sized shaped datasets:
+
+```python
+from abstractgraph_graphicalizer.chem import load_pubchem_graph_dataset
+
+graphs, targets, metadata = load_pubchem_graph_dataset(
+    assay_id="624249",
+    dataset_size=256,
+    max_node_count=40,
+    use_equalized=False,
+)
+```
+
+## ZINC CSV Exports
+
+`ZINCLoader` standardizes local CSV exports such as:
+
+- `zinc_250k.csv`
+- `zinc_small.csv`
+
+The bundled Git-tracked sample location is:
+
+- `abstractgraph-graphicalizer/data/ZINC/`
+
+For larger local ZINC datasets, the preferred ignored location is:
+
+- `abstractgraph-graphicalizer/data-local/ZINC/`
+
+Resolution order is:
+
+1. the explicit `root=` passed to `ZINCLoader(...)`
+2. `ABSTRACTGRAPH_ZINC_ROOT`
+3. `abstractgraph-graphicalizer/data-local/ZINC/`
+4. `abstractgraph-graphicalizer/data/ZINC/`
+
+Typical usage:
+
+```python
+from abstractgraph_graphicalizer.chem import ZINCLoader
+
+loader = ZINCLoader()
+graphs, metadata = loader.load("zinc_250k", limit=128)
+```
+
+To inspect the available local CSV datasets:
+
+```python
+loader = ZINCLoader()
+print(loader.format_dataset_table())
+```
+
+To build and reuse a cached graph corpus bucketed by node count:
+
+```python
+from abstractgraph_graphicalizer.chem import (
+    build_zinc_graph_corpus,
+    download_zinc_dataset,
+    extract_zinc_targets,
+    load_zinc_graph_dataset,
+)
+
+csv_path = download_zinc_dataset("/tmp/zinc")
+manifest = build_zinc_graph_corpus("/tmp/zinc", csv_path)
+graphs, metadata = load_zinc_graph_dataset("/tmp/zinc", min_node_count=10, max_node_count=15)
+targets = extract_zinc_targets(metadata)
+```
+
+The chemistry package also exports `SupervisedDatasetLoader` and the legacy
+camel-case alias `SupervisedDataSetLoader` for notebook-scale resizing,
+equalization, and binary-target shaping.

@@ -2,27 +2,42 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import pickle
 from pathlib import Path
 from unittest.mock import patch
 
 import networkx as nx
+import numpy as np
+import pandas as pd
 
 from abstractgraph_graphicalizer.chem import (
     CHEM_EDGE_SCHEMA,
     CHEM_NODE_SCHEMA,
+    DEFAULT_ZINC_TARGET_COLUMNS,
     MoleculeParseError,
     PubChemLoader,
+    SupervisedDataSetLoader,
+    ZINCLoader,
+    build_zinc_graph_corpus,
     bundled_pubchem_root,
+    bundled_zinc_root,
     default_pubchem_root,
+    default_zinc_root,
     draw_graph,
     draw_molecule,
+    extract_zinc_targets,
     graph_to_rdmol,
+    load_pubchem_graph_dataset,
+    load_zinc_graph_dataset,
+    normalize_graph_schema,
     local_pubchem_root,
+    local_zinc_root,
     pubchem_search_roots,
     sdf_to_graphs,
     smi_to_graphs,
     smiles_list_to_graphs,
     smiles_to_graph,
+    zinc_search_roots,
 )
 from abstractgraph_graphicalizer.chem.molecules import Chem
 
@@ -47,6 +62,18 @@ class ChemistryTest(unittest.TestCase):
         mol = graph_to_rdmol(graph)
         self.assertEqual(mol.GetNumAtoms(), 2)
         self.assertEqual(str(mol.GetBondWithIdx(0).GetBondType()), "DOUBLE")
+
+    def test_normalize_graph_schema_upgrades_legacy_labels(self) -> None:
+        graph = nx.Graph()
+        graph.add_node(0, label="C")
+        graph.add_node(1, label="O")
+        graph.add_edge(0, 1, label="1")
+
+        normalized = normalize_graph_schema(graph)
+
+        self.assertEqual(normalized.edges[(0, 1)]["label"], "single")
+        self.assertEqual(normalized.edges[(0, 1)]["bond_order"], 1.0)
+        self.assertEqual(normalized.edges[(0, 1)]["bond_type"], "SINGLE")
 
     def test_smiles_list_skip_invalid_records(self) -> None:
         graphs = smiles_list_to_graphs(["CCO", "not-a-smiles", "C#N"], on_error="skip")
@@ -132,7 +159,12 @@ class ChemistryTest(unittest.TestCase):
         roots = pubchem_search_roots()
         self.assertIn(local_pubchem_root().resolve(), roots)
         self.assertIn(bundled_pubchem_root().resolve(), roots)
-        self.assertEqual(default_pubchem_root(), local_pubchem_root().resolve())
+        expected_default = (
+            local_pubchem_root().resolve()
+            if local_pubchem_root().resolve().exists()
+            else bundled_pubchem_root().resolve()
+        )
+        self.assertEqual(default_pubchem_root(), expected_default)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch.dict("os.environ", {"ABSTRACTGRAPH_PUBCHEM_ROOT": tmpdir}, clear=False):
@@ -191,6 +223,149 @@ class ChemistryTest(unittest.TestCase):
             self.assertIn("1706", table)
             self.assertIn("2631", table)
             self.assertIn("total_mols", table)
+
+    def test_zinc_loader_reads_csv_exports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            csv_path = root / "zinc_small.csv"
+            csv_path.write_text(
+                "zinc_id,smiles,logP,qed,SAS\n"
+                "z1,CCO,1.0,0.5,2.0\n"
+                "z2,C=C,1.2,0.4,2.1\n"
+            )
+
+            loader = ZINCLoader(root)
+            paths = loader.resolve_paths("zinc_small")
+            self.assertEqual(paths.dataset_name, "zinc_small")
+            self.assertEqual(paths.csv_path, csv_path)
+
+            frame = loader.load_frame("zinc_small", limit=1)
+            self.assertEqual(frame["zinc_id"].tolist(), ["z1"])
+
+            graphs, metadata = loader.load("zinc_small")
+            self.assertEqual(len(graphs), 2)
+            self.assertEqual(metadata["zinc_id"].tolist(), ["z1", "z2"])
+            self.assertEqual(graphs[0].graph["zinc_dataset"], "zinc_small")
+            self.assertEqual(graphs[0].graph["zinc_id"], "z1")
+            self.assertEqual(graphs[0].graph["source"], "zinc")
+
+    def test_zinc_loader_skip_invalid_smiles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            csv_path = root / "zinc_small.csv"
+            csv_path.write_text(
+                "zinc_id,smiles,logP\n"
+                "z1,CCO,1.0\n"
+                "z2,not-a-smiles,1.1\n"
+                "z3,C#N,1.2\n"
+            )
+
+            loader = ZINCLoader(root, on_error="skip")
+            graphs, metadata = loader.load("zinc_small")
+
+            self.assertEqual(len(graphs), 2)
+            self.assertEqual(metadata["zinc_id"].tolist(), ["z1", "z3"])
+
+    def test_zinc_loader_root_resolution_helpers(self) -> None:
+        roots = zinc_search_roots()
+        self.assertIn(local_zinc_root().resolve(), roots)
+        self.assertIn(bundled_zinc_root().resolve(), roots)
+        expected_default = (
+            local_zinc_root().resolve()
+            if local_zinc_root().resolve().exists()
+            else bundled_zinc_root().resolve()
+        )
+        self.assertEqual(default_zinc_root(), expected_default)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict("os.environ", {"ABSTRACTGRAPH_ZINC_ROOT": tmpdir}, clear=False):
+                self.assertEqual(default_zinc_root(), Path(tmpdir).resolve())
+
+    def test_zinc_loader_formats_dataset_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "zinc_a.csv").write_text("zinc_id,smiles\nz1,CCO\n")
+            (root / "zinc_b.csv").write_text("zinc_id,smiles\nz2,C=C\nz3,C#N\n")
+
+            loader = ZINCLoader(root)
+            table = loader.format_dataset_table()
+
+            self.assertIn("dataset", table)
+            self.assertIn("zinc_a", table)
+            self.assertIn("zinc_b", table)
+            self.assertIn("molecules", table)
+
+    def test_supervised_dataset_loader_equalizes_and_resizes(self) -> None:
+        def load_func():
+            return ["a", "b", "c", "d"], np.asarray([0, 0, 1, 1])
+
+        data, targets = SupervisedDataSetLoader(
+            load_func=load_func,
+            size=2,
+            use_equalized=True,
+            random_state=0,
+        ).load()
+
+        self.assertEqual(len(data), 2)
+        self.assertEqual(sorted(np.unique(targets).tolist()), [0, 1])
+
+    def test_load_pubchem_graph_dataset_filters_node_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            active_path = root / "AID624249_active.sdf"
+            inactive_path = root / "AID624249_inactive.sdf"
+
+            active_writer = Chem.SDWriter(str(active_path))
+            active_writer.write(Chem.MolFromSmiles("CCO"))
+            active_writer.close()
+
+            inactive_writer = Chem.SDWriter(str(inactive_path))
+            inactive_writer.write(Chem.MolFromSmiles("C1=CC=CC=C1"))
+            inactive_writer.close()
+
+            graphs, targets, metadata = load_pubchem_graph_dataset(
+                root,
+                assay_id="624249",
+                max_node_count=3,
+            )
+
+            self.assertEqual(len(graphs), 1)
+            self.assertEqual(targets.tolist(), [1])
+            self.assertEqual(metadata["node_count"].tolist(), [3])
+
+    def test_build_and_load_zinc_graph_corpus_normalizes_legacy_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            csv_path = root / "zinc_small.csv"
+            pd.DataFrame(
+                [
+                    {"zinc_id": "z1", "smiles": "CCO", "logP": 1.0, "qed": 0.5, "SAS": 2.0},
+                    {"zinc_id": "z2", "smiles": "C=C", "logP": 1.2, "qed": 0.4, "SAS": 2.1},
+                ]
+            ).to_csv(csv_path, index=False)
+
+            manifest = build_zinc_graph_corpus(root, csv_path)
+            bucket_path = Path(manifest["bucket_files"][2])
+            with bucket_path.open("rb") as handle:
+                items = pickle.load(handle)
+            legacy_graph = items[0][0]
+            for _, _, data in legacy_graph.edges(data=True):
+                data["label"] = "1"
+                data.pop("bond_order", None)
+                data.pop("bond_type", None)
+            with bucket_path.open("wb") as handle:
+                pickle.dump(items, handle)
+
+            graphs, metadata = load_zinc_graph_dataset(root, max_molecules=10)
+
+            self.assertEqual(len(graphs), 2)
+            self.assertEqual(sorted(metadata["zinc_id"].tolist()), ["z1", "z2"])
+            self.assertEqual(next(iter(graphs[0].edges(data=True)))[2]["label"], "single")
+
+    def test_extract_zinc_targets_uses_default_columns(self) -> None:
+        metadata = pd.DataFrame([{"logP": 1.0, "qed": 0.5, "SAS": 2.0, "extra": 7}])
+        targets = extract_zinc_targets(metadata)
+        self.assertEqual(targets.columns.tolist(), list(DEFAULT_ZINC_TARGET_COLUMNS))
 
 
 if __name__ == "__main__":
