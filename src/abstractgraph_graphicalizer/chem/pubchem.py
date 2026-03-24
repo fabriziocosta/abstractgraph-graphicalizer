@@ -25,6 +25,7 @@ ZINC_250K_URL = (
     "master/models/zinc/250k_rndm_zinc_drugs_clean_3.csv"
 )
 DEFAULT_ZINC_TARGET_COLUMNS = ("logP", "qed", "SAS")
+_ZINC_ROW_INDEX_COLUMN = "_zinc_row_index"
 
 
 def bundled_pubchem_root() -> Path:
@@ -462,6 +463,10 @@ class ZINCLoader:
         self.root = Path(root) if root is not None else default_zinc_root()
         self.on_error = on_error
 
+    def _cache_root(self, dataset_name: str = "zinc_250k") -> Path:
+        paths = self.resolve_paths(dataset_name)
+        return self.root / "graph_corpus_cache" / paths.dataset_name
+
     def available_datasets(self) -> list[str]:
         return sorted(path.stem for path in self.root.glob("*.csv"))
 
@@ -521,6 +526,17 @@ class ZINCLoader:
             frame = frame.iloc[: int(limit)].reset_index(drop=True)
         return frame
 
+    def _ensure_graph_corpus(
+        self,
+        dataset_name: str = "zinc_250k",
+        *,
+        force: bool = False,
+    ) -> dict:
+        paths = self.resolve_paths(dataset_name)
+        cache_root = self._cache_root(paths.dataset_name)
+        cache_root.mkdir(parents=True, exist_ok=True)
+        return build_zinc_graph_corpus(cache_root, paths.csv_path, force=force)
+
     def _graph_from_row(self, row: dict, *, dataset_name: str, row_index: int) -> nx.Graph | None:
         smiles = row.get("smiles")
         if smiles is None or not str(smiles).strip():
@@ -547,17 +563,16 @@ class ZINCLoader:
         dataset_name: str = "zinc_250k",
         *,
         limit: int | None = None,
+        min_node_count: int | None = None,
+        max_node_count: int | None = None,
     ) -> tuple[list[nx.Graph], pd.DataFrame]:
-        frame = self.load_frame(dataset_name, limit=limit)
-        graphs: list[nx.Graph] = []
-        rows: list[dict] = []
-        for row_index, row in enumerate(frame.to_dict(orient="records")):
-            graph = self._graph_from_row(row, dataset_name=dataset_name, row_index=row_index)
-            if graph is None:
-                continue
-            graphs.append(graph)
-            rows.append(row)
-        return graphs, pd.DataFrame(rows)
+        self._ensure_graph_corpus(dataset_name)
+        return load_zinc_graph_dataset(
+            self._cache_root(dataset_name),
+            max_molecules=limit,
+            min_node_count=min_node_count,
+            max_node_count=max_node_count,
+        )
 
 
 def load_pubchem_graph_dataset(
@@ -730,7 +745,9 @@ def build_zinc_graph_corpus(
             invalid_smiles_count += 1
             continue
         node_count = graph.number_of_nodes()
-        buckets.setdefault(node_count, []).append((graph, dict(row)))
+        row_payload = dict(row)
+        row_payload[_ZINC_ROW_INDEX_COLUMN] = row_index
+        buckets.setdefault(node_count, []).append((graph, row_payload))
 
     total_graphs = 0
     node_counts = sorted(buckets)
@@ -757,7 +774,7 @@ def build_zinc_graph_corpus(
 
 def load_zinc_graph_dataset(
     dataset_dir: str | Path,
-    max_molecules: int = 100_000,
+    max_molecules: int | None = 100_000,
     min_node_count: int | None = None,
     max_node_count: int | None = 40,
 ) -> tuple[list[nx.Graph], pd.DataFrame]:
@@ -790,8 +807,19 @@ def load_zinc_graph_dataset(
         for graph, row in normalized_items:
             graphs.append(graph)
             metadata_rows.append(row)
-            if len(graphs) >= int(max_molecules):
-                return graphs, pd.DataFrame(metadata_rows)
+            if max_molecules is not None and len(graphs) >= int(max_molecules):
+                break
+        if max_molecules is not None and len(graphs) >= int(max_molecules):
+            break
+    if metadata_rows and any(_ZINC_ROW_INDEX_COLUMN in row for row in metadata_rows):
+        ordered = sorted(
+            zip(graphs, metadata_rows),
+            key=lambda item: int(item[1].get(_ZINC_ROW_INDEX_COLUMN, 10**12)),
+        )
+        graphs = [graph for graph, _ in ordered]
+        metadata_rows = [dict(row) for _, row in ordered]
+    for row in metadata_rows:
+        row.pop(_ZINC_ROW_INDEX_COLUMN, None)
     return graphs, pd.DataFrame(metadata_rows)
 
 

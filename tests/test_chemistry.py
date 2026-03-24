@@ -248,6 +248,9 @@ class ChemistryTest(unittest.TestCase):
             self.assertEqual(graphs[0].graph["zinc_dataset"], "zinc_small")
             self.assertEqual(graphs[0].graph["zinc_id"], "z1")
             self.assertEqual(graphs[0].graph["source"], "zinc")
+            self.assertTrue(
+                (root / "graph_corpus_cache" / "zinc_small" / "graph_corpus" / "manifest.pkl").exists()
+            )
 
     def test_zinc_loader_skip_invalid_smiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -265,6 +268,48 @@ class ChemistryTest(unittest.TestCase):
 
             self.assertEqual(len(graphs), 2)
             self.assertEqual(metadata["zinc_id"].tolist(), ["z1", "z3"])
+
+    def test_zinc_loader_reuses_graph_corpus_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "zinc_small.csv").write_text(
+                "zinc_id,smiles,logP\n"
+                "z1,CCO,1.0\n"
+                "z2,C=C,1.1\n"
+            )
+
+            loader = ZINCLoader(root)
+            graphs, metadata = loader.load("zinc_small", min_node_count=2, max_node_count=2)
+
+            self.assertEqual(len(graphs), 1)
+            self.assertEqual(metadata["zinc_id"].tolist(), ["z2"])
+
+            with patch.object(loader, "_graph_from_row", side_effect=AssertionError("cache not reused")):
+                cached_graphs, cached_metadata = loader.load("zinc_small", min_node_count=3, max_node_count=3)
+
+            self.assertEqual(len(cached_graphs), 1)
+            self.assertEqual(cached_metadata["zinc_id"].tolist(), ["z1"])
+
+    def test_zinc_loader_uses_separate_caches_per_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "zinc_a.csv").write_text("zinc_id,smiles\nza,CCO\n")
+            (root / "zinc_b.csv").write_text("zinc_id,smiles\nzb,C=C\n")
+
+            loader = ZINCLoader(root)
+            graphs_a, metadata_a = loader.load("zinc_a")
+            graphs_b, metadata_b = loader.load("zinc_b")
+
+            self.assertEqual(metadata_a["zinc_id"].tolist(), ["za"])
+            self.assertEqual(metadata_b["zinc_id"].tolist(), ["zb"])
+            self.assertEqual(len(graphs_a), 1)
+            self.assertEqual(len(graphs_b), 1)
+            self.assertTrue(
+                (root / "graph_corpus_cache" / "zinc_a" / "graph_corpus" / "manifest.pkl").exists()
+            )
+            self.assertTrue(
+                (root / "graph_corpus_cache" / "zinc_b" / "graph_corpus" / "manifest.pkl").exists()
+            )
 
     def test_zinc_loader_root_resolution_helpers(self) -> None:
         roots = zinc_search_roots()
