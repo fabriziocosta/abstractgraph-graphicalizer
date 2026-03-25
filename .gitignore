@@ -14,5 +14,10 @@ htmlcov/
 .ipynb_checkpoints/
 **/.ipynb_backups/
 data-local/
+data/graph_corpus_cache/
+data-local/graph_corpus_cache/
+data/GDB/*.gz
+data/GDB/*.tgz
+data/GDB/*.metadata.json
 .DS_Store
 **/.DS_Store
