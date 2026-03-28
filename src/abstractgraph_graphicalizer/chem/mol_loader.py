@@ -656,3 +656,144 @@ class CSVMoleculeLoader(Generic[DatasetPathsT, DatasetSummaryT]):
             min_node_count=min_node_count,
             max_node_count=max_node_count,
         )
+
+
+class MolecularGraphSourceLoader:
+    """Stream molecular graphs directly from raw source files.
+
+    This loader is intentionally lightweight and complements the cached-corpus
+    dataset loaders above. It is meant for single-pass or bounded-memory
+    workflows such as online feature extraction or streaming model training.
+    """
+
+    _SMILES_COLUMN_CANDIDATES = ("smiles", "SMILES", "Smiles")
+    _SMILES_CSV_TYPES = frozenset({"smiles_csv", "csv_smiles", "zinc_csv"})
+
+    def __init__(self, *, on_error: str = "skip", chunksize: int = 1024) -> None:
+        self.on_error = str(on_error)
+        self.chunksize = int(chunksize)
+        if self.chunksize < 1:
+            raise ValueError("chunksize must be >= 1")
+        if self.on_error not in {"skip", "raise"}:
+            raise ValueError("on_error must be 'skip' or 'raise'")
+
+    @staticmethod
+    def _make_rng(random_state=None):
+        if random_state is None:
+            return np.random.default_rng()
+        if isinstance(random_state, np.random.Generator):
+            return random_state
+        return np.random.default_rng(random_state)
+
+    @staticmethod
+    def _normalize_limit(limit):
+        if limit is None:
+            return None
+        if isinstance(limit, (int, np.integer)):
+            if int(limit) < 0:
+                raise ValueError("limit must be >= 0 when provided as an integer.")
+            return int(limit)
+        if isinstance(limit, float):
+            if not 0.0 < float(limit) < 1.0:
+                raise ValueError("float limit must be strictly between 0 and 1.")
+            return float(limit)
+        raise TypeError("limit must be None, int, or float.")
+
+    @classmethod
+    def _resolve_smiles_column(cls, columns) -> str:
+        for column in cls._SMILES_COLUMN_CANDIDATES:
+            if column in columns:
+                return column
+        raise ValueError(
+            "SMILES CSV reader requires a smiles column named one of: "
+            f"{', '.join(cls._SMILES_COLUMN_CANDIDATES)}."
+        )
+
+    @staticmethod
+    def _coerce_metadata_value(value):
+        if pd.isna(value):
+            return None
+        if isinstance(value, np.generic):
+            return value.item()
+        return value
+
+    def _graph_from_smiles_row(self, row: dict, *, dataset_name: str, row_index: int) -> nx.Graph | None:
+        smiles = row.get("smiles")
+        if smiles is None or not str(smiles).strip():
+            if self.on_error == "skip":
+                return None
+            raise MoleculeParseError("Missing SMILES", f"{dataset_name}[{row_index}]")
+        try:
+            graph = smiles_to_graph(str(smiles))
+        except MoleculeParseError:
+            if self.on_error == "skip":
+                return None
+            raise
+        if graph is None:
+            return None
+        graph = normalize_graph_schema(graph, copy=False)
+        graph.graph["source"] = dataset_name
+        graph.graph["input"] = f"{dataset_name}[{row_index}]"
+        graph.graph["smiles"] = str(smiles)
+        graph.graph["name"] = f"{dataset_name}:{row_index}"
+        for key, value in row.items():
+            normalized = self._coerce_metadata_value(value)
+            if normalized is None:
+                continue
+            graph.graph[key] = normalized
+        return graph
+
+    def _iter_smiles_csv_graphs(self, uri) -> Iterator[nx.Graph]:
+        csv_path = Path(uri).expanduser().resolve()
+        dataset_name = csv_path.stem
+        row_index = 0
+        for chunk in pd.read_csv(csv_path, chunksize=self.chunksize):
+            smiles_column = self._resolve_smiles_column(chunk.columns)
+            for row in chunk.to_dict(orient="records"):
+                if smiles_column != "smiles" and "smiles" not in row:
+                    row = dict(row)
+                    row["smiles"] = row.get(smiles_column)
+                graph = self._graph_from_smiles_row(
+                    row,
+                    dataset_name=dataset_name,
+                    row_index=row_index,
+                )
+                row_index += 1
+                if graph is None:
+                    continue
+                yield graph
+
+    def iter_graphs(
+        self,
+        uri,
+        source_type: str,
+        *,
+        limit=None,
+        random_state=None,
+        start_after_instance: int = 0,
+    ) -> Iterator[nx.Graph]:
+        normalized_type = str(source_type).strip().lower()
+        if normalized_type not in self._SMILES_CSV_TYPES:
+            available = ", ".join(sorted(self._SMILES_CSV_TYPES))
+            raise ValueError(
+                f"Unsupported molecular source type '{source_type}'. Available types: {available}."
+            )
+        start_after_instance = int(start_after_instance)
+        if start_after_instance < 0:
+            raise ValueError("start_after_instance must be >= 0")
+        normalized_limit = self._normalize_limit(limit)
+        rng = self._make_rng(random_state)
+        yielded = 0
+        for raw_index, graph in enumerate(self._iter_smiles_csv_graphs(uri)):
+            if raw_index < start_after_instance:
+                continue
+            if normalized_limit is None:
+                pass
+            elif isinstance(normalized_limit, int):
+                if yielded >= normalized_limit:
+                    break
+            else:
+                if rng.random() > normalized_limit:
+                    continue
+            yielded += 1
+            yield graph

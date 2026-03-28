@@ -18,6 +18,7 @@ from abstractgraph_graphicalizer.chem.molecules import (
     smiles_to_graph,
 )
 from abstractgraph_graphicalizer.chem.mol_loader import (
+    MolecularGraphSourceLoader,
     SupervisedDataSetLoader,
     SupervisedDatasetLoader,
 )
@@ -105,6 +106,7 @@ __all__ = [
     "PubChemAssayLoader",
     "PubChemLoader",
     "DEFAULT_GDB_MODE",
+    "MolecularGraphSourceLoader",
     "SupervisedDataSetLoader",
     "SupervisedDatasetLoader",
     "DEFAULT_QM9_TARGET_COLUMNS",
