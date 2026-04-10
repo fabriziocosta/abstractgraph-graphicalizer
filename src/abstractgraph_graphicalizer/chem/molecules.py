@@ -3,28 +3,43 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib
+from io import BytesIO
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
+from typing import Iterable, Iterator, Mapping, Sequence
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import colormaps
 import networkx as nx
+from PIL import Image
 
 from abstractgraph_graphicalizer.core import GraphicalizerMixin
 
 try:
     from rdkit import Chem
     from rdkit.Chem import Draw
+    from rdkit.Chem.Draw import rdMolDraw2D
 except Exception as exc:  # pragma: no cover
     Chem = None  # type: ignore[assignment]
     Draw = None  # type: ignore[assignment]
+    rdMolDraw2D = None  # type: ignore[assignment]
     _RDKIT_IMPORT_ERROR = exc
 else:  # pragma: no cover
     _RDKIT_IMPORT_ERROR = None
 
 
 def _require_rdkit() -> None:
-    if Chem is None:
+    global Chem, Draw, rdMolDraw2D, _RDKIT_IMPORT_ERROR
+    if Chem is None or Draw is None or rdMolDraw2D is None:
+        try:
+            Chem = importlib.import_module("rdkit.Chem")
+            Draw = importlib.import_module("rdkit.Chem.Draw")
+            rdMolDraw2D = importlib.import_module("rdkit.Chem.Draw.rdMolDraw2D")
+            _RDKIT_IMPORT_ERROR = None
+        except Exception as exc:  # pragma: no cover
+            _RDKIT_IMPORT_ERROR = exc
+    if Chem is None or Draw is None or rdMolDraw2D is None:
         raise ImportError(
             "RDKit is required for chemistry graphicalizers. "
             "Install the 'chem' extra for abstractgraph-graphicalizer."
@@ -253,12 +268,13 @@ def smi_to_graphs(path: str | Path, *, on_error: str = "raise") -> Iterator[nx.G
         yield graph
 
 
-def graph_to_rdmol(graph: nx.Graph):
+def graph_to_rdmol(graph: nx.Graph, *, return_index_maps: bool = False):
     """Convert a labeled NetworkX graph back to an RDKit molecule."""
     _require_rdkit()
     graph = normalize_graph_schema(graph, copy=True)
     mol = Chem.RWMol(Chem.MolFromSmiles(""))
     atom_index: dict[int, int] = {}
+    bond_index: dict[tuple[int, int], int] = {}
 
     for node, data in graph.nodes(data=True):
         label = data.get("label")
@@ -270,17 +286,135 @@ def graph_to_rdmol(graph: nx.Graph):
         label = data.get("label", "single")
         bond_type = _bond_type_from_label(label)
         mol.AddBond(atom_index[source], atom_index[target], bond_type)
+        rd_bond_idx = mol.GetBondBetweenAtoms(atom_index[source], atom_index[target]).GetIdx()
+        bond_index[(source, target)] = rd_bond_idx
+        bond_index[(target, source)] = rd_bond_idx
 
-    return mol.GetMol()
+    out = mol.GetMol()
+    if return_index_maps:
+        return out, atom_index, bond_index
+    return out
 
 
-def draw_molecule(molecule, *, size: tuple[int, int] = (500, 300)):
-    """Return an RDKit molecule image for an RDKit mol or NetworkX graph."""
+def _graph_node_scores(graph: nx.Graph, atom_scores: Mapping[object, float] | None) -> dict[object, float]:
+    if atom_scores is not None:
+        return {node: float(value) for node, value in atom_scores.items()}
+    out: dict[object, float] = {}
+    for node, data in graph.nodes(data=True):
+        if "importance" in data:
+            out[node] = float(data["importance"])
+    return out
+
+
+def _graph_bond_scores(
+    graph: nx.Graph,
+    bond_scores: Mapping[object, float] | None,
+) -> dict[tuple[object, object], float]:
+    out: dict[tuple[object, object], float] = {}
+    if bond_scores is not None:
+        for key, value in bond_scores.items():
+            if not isinstance(key, tuple) or len(key) != 2:
+                continue
+            source, target = key
+            out[(source, target)] = float(value)
+            out[(target, source)] = float(value)
+        return out
+    for source, target, data in graph.edges(data=True):
+        if "importance" in data:
+            out[(source, target)] = float(data["importance"])
+            out[(target, source)] = float(data["importance"])
+    return out
+
+
+def _normalize_positive_scores(scores: Mapping[object, float]) -> dict[object, float]:
+    positive = {key: max(0.0, float(value)) for key, value in scores.items() if float(value) > 0.0}
+    if not positive:
+        return {}
+    vmax = max(positive.values())
+    if vmax <= 0:
+        return {}
+    return {key: value / vmax for key, value in positive.items()}
+
+
+def _score_to_rgb(score: float, cmap_name: str) -> tuple[float, float, float]:
+    rgba = colormaps.get_cmap(cmap_name)(float(np.clip(score, 0.0, 1.0)))
+    return (float(rgba[0]), float(rgba[1]), float(rgba[2]))
+
+
+def draw_molecule(
+    molecule,
+    *,
+    size: tuple[int, int] = (500, 300),
+    atom_scores: Mapping[object, float] | None = None,
+    bond_scores: Mapping[object, float] | None = None,
+    cmap: str = "YlOrRd",
+    glow: bool = True,
+):
+    """Return an RDKit molecule image for an RDKit mol or NetworkX graph.
+
+    When scores are provided, atoms and bonds are highlighted using RDKit's
+    highlight rendering. For NetworkX graphs, node/edge ``importance`` fields
+    are used by default when explicit score mappings are not passed.
+    """
     _require_rdkit()
-    mol = graph_to_rdmol(molecule) if isinstance(molecule, nx.Graph) else molecule
+    atom_highlights: dict[int, tuple[float, float, float]] = {}
+    atom_radii: dict[int, float] = {}
+    bond_highlights: dict[int, tuple[float, float, float]] = {}
+
+    if isinstance(molecule, nx.Graph):
+        mol, atom_index, bond_index = graph_to_rdmol(molecule, return_index_maps=True)
+        normalized_atom_scores = _normalize_positive_scores(_graph_node_scores(molecule, atom_scores))
+        normalized_bond_scores = _normalize_positive_scores(_graph_bond_scores(molecule, bond_scores))
+        for node, score in normalized_atom_scores.items():
+            atom_idx = atom_index.get(node)
+            if atom_idx is None:
+                continue
+            atom_highlights[atom_idx] = _score_to_rgb(score, cmap)
+            atom_radii[atom_idx] = 0.18 + (0.28 * score if glow else 0.12 * score)
+        for edge, score in normalized_bond_scores.items():
+            bond_idx = bond_index.get(edge)
+            if bond_idx is None:
+                continue
+            bond_highlights[bond_idx] = _score_to_rgb(score, cmap)
+    else:
+        mol = molecule
+        normalized_atom_scores = _normalize_positive_scores(atom_scores or {})
+        normalized_bond_scores = _normalize_positive_scores(bond_scores or {})
+        for atom_idx, score in normalized_atom_scores.items():
+            atom_highlights[int(atom_idx)] = _score_to_rgb(score, cmap)
+            atom_radii[int(atom_idx)] = 0.18 + (0.28 * score if glow else 0.12 * score)
+        for bond_idx, score in normalized_bond_scores.items():
+            bond_highlights[int(bond_idx)] = _score_to_rgb(score, cmap)
+
     if mol is None:
         raise MoleculeParseError("Cannot draw empty molecule")
-    return Draw.MolToImage(mol, size=size)
+    if not atom_highlights and not bond_highlights:
+        return Draw.MolToImage(mol, size=size)
+
+    rdMolDraw2D.PrepareMolForDrawing(mol)
+    drawer = rdMolDraw2D.MolDraw2DCairo(int(size[0]), int(size[1]))
+    options = drawer.drawOptions()
+    options.useBWAtomPalette()
+    if hasattr(options, "fillHighlights"):
+        options.fillHighlights = True
+    if hasattr(options, "continuousHighlight"):
+        options.continuousHighlight = bool(glow)
+    if hasattr(options, "atomHighlightsAreCircles"):
+        options.atomHighlightsAreCircles = True
+    if hasattr(options, "highlightBondWidthMultiplier"):
+        options.highlightBondWidthMultiplier = 16 if glow else 8
+
+    Draw.rdMolDraw2D.PrepareAndDrawMolecule(
+        drawer,
+        mol,
+        highlightAtoms=sorted(atom_highlights.keys()),
+        highlightAtomColors=atom_highlights,
+        highlightAtomRadii=atom_radii,
+        highlightBonds=sorted(bond_highlights.keys()),
+        highlightBondColors=bond_highlights,
+    )
+    drawer.FinishDrawing()
+    return Image.open(BytesIO(drawer.GetDrawingText()))
 
 
 def draw_graph(graph: nx.Graph, *, ax=None):

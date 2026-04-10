@@ -89,6 +89,15 @@ class ChemistryTest(unittest.TestCase):
         self.assertEqual(mol.GetNumAtoms(), 2)
         self.assertEqual(str(mol.GetBondWithIdx(0).GetBondType()), "DOUBLE")
 
+    def test_graph_to_rdmol_can_return_index_maps(self) -> None:
+        graph = smiles_to_graph("CCO")
+        mol, atom_index, bond_index = graph_to_rdmol(graph, return_index_maps=True)
+        self.assertEqual(mol.GetNumAtoms(), 3)
+        self.assertEqual(set(atom_index.keys()), set(graph.nodes()))
+        self.assertEqual(len({bond_index[edge] for edge in graph.edges()}), graph.number_of_edges())
+        for source, target in graph.edges():
+            self.assertEqual(bond_index[(source, target)], bond_index[(target, source)])
+
     def test_normalize_graph_schema_upgrades_legacy_labels(self) -> None:
         graph = nx.Graph()
         graph.add_node(0, label="C")
@@ -133,6 +142,16 @@ class ChemistryTest(unittest.TestCase):
             ax = draw_graph(graphs[1])
             self.assertTrue(hasattr(image, "size"))
             self.assertTrue(hasattr(ax, "set_axis_off"))
+
+    def test_draw_molecule_accepts_importance_scores(self) -> None:
+        graph = smiles_to_graph("CCO")
+        graph.nodes[0]["importance"] = 1.0
+        graph.nodes[1]["importance"] = 0.5
+        graph.edges[0, 1]["importance"] = 0.75
+
+        image = draw_molecule(graph, size=(300, 200))
+
+        self.assertEqual(image.size, (300, 200))
 
     def test_pubchem_loader_reads_active_and_inactive_exports(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
