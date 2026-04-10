@@ -309,6 +309,8 @@ def _graph_node_scores(graph: nx.Graph, atom_scores: Mapping[object, float] | No
 def _graph_bond_scores(
     graph: nx.Graph,
     bond_scores: Mapping[object, float] | None,
+    *,
+    normalized_atom_scores: Mapping[object, float] | None = None,
 ) -> dict[tuple[object, object], float]:
     out: dict[tuple[object, object], float] = {}
     if bond_scores is not None:
@@ -318,6 +320,16 @@ def _graph_bond_scores(
             source, target = key
             out[(source, target)] = float(value)
             out[(target, source)] = float(value)
+        return out
+    if normalized_atom_scores:
+        for source, target in graph.edges():
+            score = min(
+                float(normalized_atom_scores.get(source, 0.0)),
+                float(normalized_atom_scores.get(target, 0.0)),
+            )
+            if score > 0.0:
+                out[(source, target)] = score
+                out[(target, source)] = score
         return out
     for source, target, data in graph.edges(data=True):
         if "importance" in data:
@@ -334,6 +346,21 @@ def _normalize_positive_scores(scores: Mapping[object, float]) -> dict[object, f
     if vmax <= 0:
         return {}
     return {key: value / vmax for key, value in positive.items()}
+
+
+def _visualize_scores(
+    scores: Mapping[object, float],
+    *,
+    floor: float = 0.18,
+    gamma: float = 0.6,
+) -> dict[object, float]:
+    floor = float(np.clip(floor, 0.0, 1.0))
+    gamma = max(1e-9, float(gamma))
+    out: dict[object, float] = {}
+    for key, value in scores.items():
+        norm_value = float(np.clip(value, 0.0, 1.0))
+        out[key] = floor + (1.0 - floor) * float(np.power(norm_value, gamma))
+    return out
 
 
 def _score_to_rgb(score: float, cmap_name: str) -> tuple[float, float, float]:
@@ -364,13 +391,21 @@ def draw_molecule(
     if isinstance(molecule, nx.Graph):
         mol, atom_index, bond_index = graph_to_rdmol(molecule, return_index_maps=True)
         normalized_atom_scores = _normalize_positive_scores(_graph_node_scores(molecule, atom_scores))
-        normalized_bond_scores = _normalize_positive_scores(_graph_bond_scores(molecule, bond_scores))
-        for node, score in normalized_atom_scores.items():
+        visual_atom_scores = _visualize_scores(normalized_atom_scores)
+        normalized_bond_scores = _graph_bond_scores(
+            molecule,
+            bond_scores,
+            normalized_atom_scores=visual_atom_scores if bond_scores is None else None,
+        )
+        if bond_scores is not None:
+            normalized_bond_scores = _normalize_positive_scores(normalized_bond_scores)
+            normalized_bond_scores = _visualize_scores(normalized_bond_scores)
+        for node, score in visual_atom_scores.items():
             atom_idx = atom_index.get(node)
             if atom_idx is None:
                 continue
             atom_highlights[atom_idx] = _score_to_rgb(score, cmap)
-            atom_radii[atom_idx] = 0.18 + (0.28 * score if glow else 0.12 * score)
+            atom_radii[atom_idx] = 0.14 + (0.22 * score if glow else 0.10 * score)
         for edge, score in normalized_bond_scores.items():
             bond_idx = bond_index.get(edge)
             if bond_idx is None:
@@ -378,11 +413,11 @@ def draw_molecule(
             bond_highlights[bond_idx] = _score_to_rgb(score, cmap)
     else:
         mol = molecule
-        normalized_atom_scores = _normalize_positive_scores(atom_scores or {})
-        normalized_bond_scores = _normalize_positive_scores(bond_scores or {})
+        normalized_atom_scores = _visualize_scores(_normalize_positive_scores(atom_scores or {}))
+        normalized_bond_scores = _visualize_scores(_normalize_positive_scores(bond_scores or {}))
         for atom_idx, score in normalized_atom_scores.items():
             atom_highlights[int(atom_idx)] = _score_to_rgb(score, cmap)
-            atom_radii[int(atom_idx)] = 0.18 + (0.28 * score if glow else 0.12 * score)
+            atom_radii[int(atom_idx)] = 0.14 + (0.22 * score if glow else 0.10 * score)
         for bond_idx, score in normalized_bond_scores.items():
             bond_highlights[int(bond_idx)] = _score_to_rgb(score, cmap)
 

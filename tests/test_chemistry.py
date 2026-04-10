@@ -65,7 +65,12 @@ from abstractgraph_graphicalizer.chem import (
     smiles_to_graph,
     zinc_search_roots,
 )
-from abstractgraph_graphicalizer.chem.molecules import Chem
+from abstractgraph_graphicalizer.chem.molecules import (
+    Chem,
+    _graph_bond_scores,
+    _normalize_positive_scores,
+    _visualize_scores,
+)
 
 
 @unittest.skipIf(Chem is None, "RDKit not installed")
@@ -152,6 +157,19 @@ class ChemistryTest(unittest.TestCase):
         image = draw_molecule(graph, size=(300, 200))
 
         self.assertEqual(image.size, (300, 200))
+
+    def test_graph_bond_scores_default_to_min_endpoint_importance(self) -> None:
+        graph = smiles_to_graph("CCO")
+        visual_atom_scores = _visualize_scores(_normalize_positive_scores({0: 1.0, 1: 0.5, 2: 0.25}))
+
+        bond_scores = _graph_bond_scores(
+            graph,
+            None,
+            normalized_atom_scores=visual_atom_scores,
+        )
+
+        self.assertEqual(bond_scores[(0, 1)], visual_atom_scores[1])
+        self.assertEqual(bond_scores[(1, 2)], visual_atom_scores[2])
 
     def test_pubchem_loader_reads_active_and_inactive_exports(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
