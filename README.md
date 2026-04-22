@@ -17,6 +17,7 @@ Focused backend docs:
 - [docs/GRAPH.md](docs/GRAPH.md)
 - [docs/DATA.md](docs/DATA.md)
 - [docs/RNA.md](docs/RNA.md)
+- [docs/PROTEIN.md](docs/PROTEIN.md)
 - [docs/IMAGE.md](docs/IMAGE.md)
 
 ## Ecosystem
@@ -91,6 +92,17 @@ entrypoints are `sequence_dotbracket_to_graph`, `seq_struct_to_graph`,
 `SequenceReverseComplementGraphicalizer` in
 `abstractgraph_graphicalizer.rna`. See [docs/RNA.md](docs/RNA.md).
 
+### Protein graphicalizers
+
+The protein backend converts PDBx/mmCIF protein chains into protein contact
+networks with residues represented by C-alpha coordinates. It can parse local
+plain or gzipped mmCIF files, download RCSB mmCIF files by PDB ID, and cache
+optional graph pickles for repeated workflows. The main entrypoints are
+`extract_chain_record`, `protein_chain_record_to_pcn`,
+`ProteinContactNetworkGraphicalizer`, `ProteinContactNetworkLoader`, and
+`ProteinLabelGraphicalizer` in `abstractgraph_graphicalizer.protein`. See
+[docs/PROTEIN.md](docs/PROTEIN.md).
+
 ### Image graphicalizers
 
 The image backend builds scene graphs from images plus precomputed segment
@@ -112,6 +124,7 @@ segmented image inputs. The main entrypoints are
 - `src/abstractgraph_graphicalizer/data/`
 - `src/abstractgraph_graphicalizer/graph/`
 - `src/abstractgraph_graphicalizer/image/`
+- `src/abstractgraph_graphicalizer/protein/`
 - `src/abstractgraph_graphicalizer/rna/`
 - `src/abstractgraph_graphicalizer/text/`
 

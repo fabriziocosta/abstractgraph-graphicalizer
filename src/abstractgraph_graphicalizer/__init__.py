@@ -24,6 +24,18 @@ from abstractgraph_graphicalizer.image import (
     load_images,
     visualize_scene_graph_on_image,
 )
+from abstractgraph_graphicalizer.protein import (
+    AMINO_ACID_ALPHABETS,
+    ProteinChainRecord,
+    ProteinContactNetworkGraphicalizer,
+    ProteinContactNetworkLoader,
+    ProteinLabelGraphicalizer,
+    ResidueCA,
+    download_mmcif,
+    extract_chain_record,
+    label_protein_contact_graph,
+    protein_chain_record_to_pcn,
+)
 from abstractgraph_graphicalizer.graph import (
     NodeEmbedderGraphGraphicalizer,
     NormalizedLaplacianSVDGraphGraphicalizer,
@@ -106,6 +118,16 @@ __all__ = [
     "extract_geometric_relations_graph",
     "visualize_scene_graph_on_image",
     "load_images",
+    "ProteinChainRecord",
+    "ProteinContactNetworkGraphicalizer",
+    "ProteinContactNetworkLoader",
+    "ProteinLabelGraphicalizer",
+    "ResidueCA",
+    "AMINO_ACID_ALPHABETS",
+    "download_mmcif",
+    "extract_chain_record",
+    "label_protein_contact_graph",
+    "protein_chain_record_to_pcn",
 ]
 
 
