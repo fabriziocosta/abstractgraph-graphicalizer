@@ -147,3 +147,8 @@ python -m pip install -e '.[chem]'
 ```bash
 python scripts/smoke_test.py
 ```
+
+## Ecosystem
+
+See the [AbstractGraph ecosystem README](../../README.md) for how this
+repository fits with the sibling repositories.
