@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/AG_Logo.png" alt="AbstractGraph logo" width="220">
+</p>
+
 # abstractgraph-graphicalizer
 
 `abstractgraph-graphicalizer` converts raw, structured, or weakly structured
