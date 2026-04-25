@@ -29,10 +29,16 @@ For the semantic role of this repository, see [../README.md](../README.md).
 
 ## Install
 
-Core install:
+Standalone editable install:
 
 ```bash
 python -m pip install -e .
+```
+
+Inside the `abstractgraph-ecosystem` superproject:
+
+```bash
+python -m pip install -e repos/abstractgraph-graphicalizer --no-deps
 ```
 
 Chemistry extras:
@@ -40,6 +46,35 @@ Chemistry extras:
 ```bash
 python -m pip install -e '.[chem]'
 ```
+
+## Dependencies
+
+Runtime dependencies declared in `pyproject.toml`:
+
+- `networkx`
+- `numpy`
+- `scipy`
+- `scikit-learn`
+- `matplotlib`
+- `Pillow`
+- `requests`
+- `torch`
+
+Optional chemistry dependency:
+
+- `rdkit`
+
+## Caveats
+
+- This package intentionally does not depend on the core `abstractgraph`
+  package. It converts raw domains into NetworkX graphs that can then be used by
+  the rest of the ecosystem.
+- `torch` is a default dependency because attention graphicalizers need tensor
+  inputs and model outputs.
+- RDKit can be easiest to install from conda-forge. Use the `chem` extra only
+  when chemistry graphicalizers are needed.
+- Install with `--no-deps` only in a shared ecosystem environment where runtime
+  dependencies are already managed.
 
 ## Validation
 
