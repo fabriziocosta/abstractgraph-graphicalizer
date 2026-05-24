@@ -92,6 +92,7 @@ class BottleneckGraphicalizerTest(unittest.TestCase):
             tokens=["a", "b"],
             input_id="demo",
             metadata={"kind": "test"},
+            message_edge_mode="learned",
         )
         directed = bottleneck_output_to_networkx(output, output_graph="directed")
         self.assertIsInstance(directed, nx.DiGraph)
@@ -99,6 +100,7 @@ class BottleneckGraphicalizerTest(unittest.TestCase):
         self.assertEqual(directed.number_of_edges(), 1)
         self.assertEqual(directed.graph["source"], "graph_interpretation_bottleneck")
         self.assertEqual(directed.graph["graph_kind"], "predicted_bottleneck_edges")
+        self.assertEqual(directed.graph["message_edge_mode"], "learned")
         self.assertIn("losses", directed.graph)
         self.assertEqual(directed.graph["tokens"], ["a", "b"])
         self.assertIn("prototype_id", directed.nodes[0])
@@ -126,6 +128,22 @@ class BottleneckGraphicalizerTest(unittest.TestCase):
         self.assertTrue(all(graph.graph["source"] == "graph_interpretation_bottleneck" for graph in graphs))
         self.assertEqual(len(graphicalizer.training_history_), 1)
         self.assertIn("loss_transition", graphicalizer.training_history_[0])
+
+    def test_message_edge_modes_forward(self) -> None:
+        for mode in {"learned", "transition", "dense", "random", "none"}:
+            torch.manual_seed(0)
+            model = GraphInterpretationBottleneck(
+                d_model=4,
+                num_prototypes=5,
+                gnn_layers=1,
+                hidden_dim=4,
+                message_edge_mode=mode,
+            )
+            output = model(torch.randn(6, 4))
+            self.assertEqual(output.message_edge_mode, mode)
+            self.assertEqual(output.adjacency.shape, (5, 5))
+            if mode == "none":
+                self.assertEqual(float(output.adjacency.sum()), 0.0)
 
 
 if __name__ == "__main__":

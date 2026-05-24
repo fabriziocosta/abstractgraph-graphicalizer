@@ -62,6 +62,18 @@ edges to agree with observed sequence transitions without using hidden automaton
 state labels. `lambda_balance > 0` adds a simple prototype load-balancing term
 that reduces prototype collapse in small synthetic benchmarks.
 
+The message-passing graph can be ablated with `message_edge_mode`:
+
+- `learned`: use the learned sparse edge predictor.
+- `transition`: use the self-supervised assignment-transition graph as an
+  oracle-style upper bound for sequence benchmarks.
+- `dense`: use all non-self edges.
+- `random`: use random sparse edges.
+- `none`: disable graph message passing edges.
+
+These modes are intended for diagnostics. The normal model-output graph remains
+the predicted bottleneck edge graph.
+
 ## Output schema
 
 `BottleneckGraphicalizer.transform(X)` returns NetworkX graphs. By default it

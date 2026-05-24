@@ -31,6 +31,7 @@ class BottleneckOutput:
     tokens: list[Any] | None = None
     input_id: str | None = None
     metadata: dict[str, Any] | None = None
+    message_edge_mode: str = "learned"
 
 
 class _ResidualGraphLayer(nn.Module):
@@ -106,6 +107,7 @@ class GraphInterpretationBottleneck(nn.Module):
         token_mask_ratio: float = 0.15,
         top_k_edges: int = 8,
         edge_threshold: float = 0.5,
+        message_edge_mode: str = "learned",
         hidden_dim: int | None = None,
         gnn_layers: int = 3,
         lambda_node: float = 1.0,
@@ -126,6 +128,9 @@ class GraphInterpretationBottleneck(nn.Module):
         self.token_mask_ratio = float(token_mask_ratio)
         self.top_k_edges = int(top_k_edges)
         self.edge_threshold = float(edge_threshold)
+        if message_edge_mode not in {"learned", "transition", "dense", "random", "none"}:
+            raise ValueError("message_edge_mode must be learned, transition, dense, random, or none")
+        self.message_edge_mode = message_edge_mode
         self.lambda_node = float(lambda_node)
         self.lambda_token = float(lambda_token)
         self.lambda_sparse = float(lambda_sparse)
@@ -192,6 +197,25 @@ class GraphInterpretationBottleneck(nn.Module):
     def _edge_probabilities(self, z: torch.Tensor) -> torch.Tensor:
         return self._sparsify_edge_probabilities(self._dense_edge_probabilities(z))
 
+    def _message_adjacency(self, learned_edges: torch.Tensor, transition_target: torch.Tensor) -> torch.Tensor:
+        k = learned_edges.shape[0]
+        if self.message_edge_mode == "learned":
+            adjacency_prob = learned_edges
+            edge_hard = (adjacency_prob > self.edge_threshold).to(adjacency_prob.dtype)
+            return edge_hard.detach() - adjacency_prob.detach() + adjacency_prob
+        if self.message_edge_mode == "transition":
+            return self._sparsify_edge_probabilities(transition_target).detach()
+        if self.message_edge_mode == "dense":
+            return (1.0 - torch.eye(k, dtype=learned_edges.dtype, device=learned_edges.device)).detach()
+        if self.message_edge_mode == "random":
+            random_scores = torch.rand_like(learned_edges)
+            random_scores = random_scores.masked_fill(
+                torch.eye(k, dtype=torch.bool, device=learned_edges.device),
+                0.0,
+            )
+            return (self._sparsify_edge_probabilities(random_scores) > 0).to(learned_edges.dtype).detach()
+        return torch.zeros_like(learned_edges).detach()
+
     def forward(
         self,
         token_embeddings: torch.Tensor,
@@ -226,8 +250,11 @@ class GraphInterpretationBottleneck(nn.Module):
         z_masked[node_mask] = self.mask_token
         dense_edge_prob = self._dense_edge_probabilities(z_masked)
         edge_prob = self._sparsify_edge_probabilities(dense_edge_prob)
-        edge_hard = (edge_prob > self.edge_threshold).to(edge_prob.dtype)
-        adjacency = edge_hard.detach() - edge_prob.detach() + edge_prob
+        transition_target = torch.zeros_like(edge_prob)
+        if assignments.shape[0] > 1:
+            transition_target = torch.matmul(assignments[:-1].transpose(0, 1), assignments[1:])
+            transition_target = transition_target / transition_target.sum(dim=-1, keepdim=True).clamp_min(self.eps)
+        adjacency = self._message_adjacency(edge_prob, transition_target)
 
         z_reconstructed = z_masked
         for layer in self.gnn_layers:
@@ -241,10 +268,6 @@ class GraphInterpretationBottleneck(nn.Module):
         loss_sparse = edge_prob.mean()
         loss_binary = (edge_prob * (1.0 - edge_prob)).mean()
         entropy = -(assignments * torch.log(assignments.clamp_min(self.eps))).sum(dim=-1).mean()
-        transition_target = torch.zeros_like(edge_prob)
-        if assignments.shape[0] > 1:
-            transition_target = torch.matmul(assignments[:-1].transpose(0, 1), assignments[1:])
-            transition_target = transition_target / transition_target.sum(dim=-1, keepdim=True).clamp_min(self.eps)
         transition_pred = dense_edge_prob / dense_edge_prob.sum(dim=-1, keepdim=True).clamp_min(self.eps)
         loss_transition = F.mse_loss(transition_pred, transition_target.detach())
         load = assignments.mean(dim=0)
@@ -284,6 +307,7 @@ class GraphInterpretationBottleneck(nn.Module):
             tokens=tokens,
             input_id=input_id,
             metadata=metadata,
+            message_edge_mode=self.message_edge_mode,
         )
 
 
@@ -353,6 +377,7 @@ def bottleneck_output_to_networkx(
     token_to_nodes = _to_numpy(output.token_to_nodes).astype(int)
     graph.graph["source"] = "graph_interpretation_bottleneck"
     graph.graph["graph_kind"] = "predicted_bottleneck_edges"
+    graph.graph["message_edge_mode"] = output.message_edge_mode
     graph.graph["assignments"] = assignments
     graph.graph["token_to_nodes"] = token_to_nodes
     graph.graph["active_prototype_ids"] = np.asarray(active_ids, dtype=int)
