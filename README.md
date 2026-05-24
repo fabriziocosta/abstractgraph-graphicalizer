@@ -26,13 +26,21 @@ speak a common attributed-graph language.
 
 ## Converter Families
 
+### Graph Interpretation Bottleneck
+
+The bottleneck backend learns sparse reusable graph structure from transformer
+or token embeddings through self-supervised masked reconstruction. It is the
+preferred learned graphicalization path for weakly structured token, patch,
+sequence, or multimodal embedding inputs.
+
+See [docs/BOTTLENECK.md](docs/BOTTLENECK.md).
+
 ### Attention Graphicalizers
 
 The attention backend turns token-level numeric inputs into preimage graphs by
 learning token embeddings and extracting robust co-clustering structure from
-attention patterns. It is meant for inputs such as per-token feature matrices,
-embedding sequences, or other array-like instances where each row represents a
-token or local part of an example.
+attention patterns. It remains available for compatibility and lightweight
+attention-derived graph extraction.
 
 See [docs/ATTENTION.md](docs/ATTENTION.md).
 

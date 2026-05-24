@@ -8,6 +8,7 @@ For the semantic role of this repository, see [../README.md](../README.md).
 ## Package Layout
 
 - `src/abstractgraph_graphicalizer/attention/`
+- `src/abstractgraph_graphicalizer/bottleneck/`
 - `src/abstractgraph_graphicalizer/chem/`
 - `src/abstractgraph_graphicalizer/core/`
 - `src/abstractgraph_graphicalizer/data/`
@@ -20,6 +21,7 @@ For the semantic role of this repository, see [../README.md](../README.md).
 ## Documentation
 
 - [ATTENTION.md](ATTENTION.md)
+- [BOTTLENECK.md](BOTTLENECK.md)
 - [CHEMISTRY.md](CHEMISTRY.md)
 - [GRAPH.md](GRAPH.md)
 - [DATA.md](DATA.md)
@@ -69,7 +71,7 @@ Optional chemistry dependency:
 - This package intentionally does not depend on the core `abstractgraph`
   package. It converts raw domains into NetworkX graphs that can then be used by
   the rest of the ecosystem.
-- `torch` is a default dependency because attention graphicalizers need tensor
+- `torch` is a default dependency because learned graphicalizers need tensor
   inputs and model outputs.
 - RDKit can be easiest to install from conda-forge. Use the `chem` extra only
   when chemistry graphicalizers are needed.
