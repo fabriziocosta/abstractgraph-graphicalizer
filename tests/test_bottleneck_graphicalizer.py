@@ -96,6 +96,7 @@ class BottleneckGraphicalizerTest(unittest.TestCase):
         self.assertEqual(directed.number_of_nodes(), 2)
         self.assertEqual(directed.number_of_edges(), 1)
         self.assertEqual(directed.graph["source"], "graph_interpretation_bottleneck")
+        self.assertEqual(directed.graph["graph_kind"], "predicted_bottleneck_edges")
         self.assertEqual(directed.graph["tokens"], ["a", "b"])
         self.assertIn("prototype_id", directed.nodes[0])
         self.assertIn("probability", directed.edges[0, 1])

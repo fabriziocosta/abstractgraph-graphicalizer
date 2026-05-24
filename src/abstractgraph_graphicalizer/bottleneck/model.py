@@ -328,6 +328,7 @@ def bottleneck_output_to_networkx(
 
     token_to_nodes = _to_numpy(output.token_to_nodes).astype(int)
     graph.graph["source"] = "graph_interpretation_bottleneck"
+    graph.graph["graph_kind"] = "predicted_bottleneck_edges"
     graph.graph["assignments"] = assignments
     graph.graph["token_to_nodes"] = token_to_nodes
     graph.graph["active_prototype_ids"] = np.asarray(active_ids, dtype=int)

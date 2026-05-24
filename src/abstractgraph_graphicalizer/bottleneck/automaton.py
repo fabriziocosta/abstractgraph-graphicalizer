@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, roc_auc_score
 
 from abstractgraph_graphicalizer.bottleneck.model import TinySequenceTransformer
 
@@ -157,18 +158,20 @@ def extract_sequence_embeddings(
     return embeddings
 
 
-def evaluate_automaton_recovery(
+def _flatten_label_sequences(label_sequences: list[np.ndarray] | np.ndarray) -> np.ndarray:
+    if isinstance(label_sequences, np.ndarray) and label_sequences.ndim == 1:
+        return label_sequences.astype(int)
+    return np.concatenate([np.asarray(x).reshape(-1) for x in label_sequences]).astype(int)
+
+
+def state_assignment_diagnostics(
     learned_assignments: list[np.ndarray] | np.ndarray,
     hidden_states: list[np.ndarray] | np.ndarray,
-    *,
-    learned_graph: nx.Graph | None = None,
-    automaton: HiddenAutomaton | None = None,
-    transition_threshold: float = 0.0,
-) -> dict[str, float]:
-    """Compute diagnostic latent-state and edge-recovery metrics."""
+) -> dict[str, Any]:
+    """Evaluate learned node assignments against hidden automaton states."""
 
-    pred = np.concatenate([np.asarray(x).reshape(-1) for x in learned_assignments]).astype(int)
-    truth = np.concatenate([np.asarray(x).reshape(-1) for x in hidden_states]).astype(int)
+    pred = _flatten_label_sequences(learned_assignments)
+    truth = _flatten_label_sequences(hidden_states)
     if pred.shape[0] != truth.shape[0]:
         raise ValueError("learned_assignments and hidden_states must have the same total length")
     if pred.size == 0:
@@ -186,33 +189,280 @@ def evaluate_automaton_recovery(
     matched = int(counts[row_ind, col_ind].sum())
     clustering_accuracy = matched / float(pred.size)
     purity = sum(int(counts[row].max()) for row in range(counts.shape[0])) / float(pred.size)
-
-    metrics: dict[str, float] = {
-        "clustering_accuracy": float(clustering_accuracy),
-        "purity": float(purity),
-        "n_learned_nodes": float(len(pred_labels)),
-        "n_true_states": float(len(true_labels)),
+    majority_state = {
+        int(pred_labels[row]): int(true_labels[int(np.argmax(counts[row]))])
+        for row in range(counts.shape[0])
+    }
+    matched_state = {
+        int(pred_labels[row]): int(true_labels[col])
+        for row, col in zip(row_ind, col_ind)
     }
 
+    prototypes_per_state = {int(state): 0 for state in true_labels}
+    prototype_state_entropy: dict[int, float] = {}
+    for row, pred_label in enumerate(pred_labels):
+        state = majority_state[int(pred_label)]
+        prototypes_per_state[state] = prototypes_per_state.get(state, 0) + 1
+        row_total = float(counts[row].sum())
+        if row_total <= 0.0:
+            prototype_state_entropy[int(pred_label)] = 0.0
+            continue
+        probs = counts[row] / row_total
+        nz = probs[probs > 0]
+        prototype_state_entropy[int(pred_label)] = float(-(nz * np.log(nz)).sum())
+
+    return {
+        "metrics": {
+            "clustering_accuracy": float(clustering_accuracy),
+            "purity": float(purity),
+            "ari": float(adjusted_rand_score(truth, pred)),
+            "nmi": float(normalized_mutual_info_score(truth, pred)),
+            "n_learned_nodes": float(len(pred_labels)),
+            "n_true_states": float(len(true_labels)),
+            "mean_prototype_state_entropy": float(np.mean(list(prototype_state_entropy.values()))),
+            "max_prototypes_per_state": float(max(prototypes_per_state.values()) if prototypes_per_state else 0),
+        },
+        "contingency": counts,
+        "learned_labels": pred_labels,
+        "true_labels": true_labels,
+        "majority_state": majority_state,
+        "matched_state": matched_state,
+        "prototypes_per_state": prototypes_per_state,
+        "prototype_state_entropy": prototype_state_entropy,
+    }
+
+
+def transition_graph_from_assignments(
+    learned_assignments: list[np.ndarray] | np.ndarray,
+    *,
+    top_k_per_source: int | None = None,
+    min_count: int = 1,
+) -> nx.DiGraph:
+    """Build a prototype transition graph from consecutive token assignments."""
+
+    sequences = (
+        [np.asarray(learned_assignments).reshape(-1)]
+        if isinstance(learned_assignments, np.ndarray) and learned_assignments.ndim == 1
+        else [np.asarray(x).reshape(-1) for x in learned_assignments]
+    )
+    nodes: set[int] = set()
+    edge_counts: dict[tuple[int, int], int] = {}
+    outgoing_counts: dict[int, int] = {}
+    for sequence in sequences:
+        values = [int(x) for x in sequence]
+        nodes.update(values)
+        for src, dst in zip(values[:-1], values[1:]):
+            edge_counts[(src, dst)] = edge_counts.get((src, dst), 0) + 1
+            outgoing_counts[src] = outgoing_counts.get(src, 0) + 1
+
+    graph = nx.DiGraph()
+    for node in sorted(nodes):
+        graph.add_node(node, prototype_id=node, label=node)
+
+    outgoing: dict[int, list[tuple[float, int, int]]] = {}
+    for (src, dst), count in edge_counts.items():
+        if count < int(min_count):
+            continue
+        probability = count / float(max(1, outgoing_counts.get(src, 0)))
+        outgoing.setdefault(src, []).append((probability, dst, count))
+
+    for src, candidates in outgoing.items():
+        selected = sorted(candidates, reverse=True)
+        if top_k_per_source is not None:
+            selected = selected[: int(top_k_per_source)]
+        for probability, dst, count in selected:
+            graph.add_edge(
+                src,
+                dst,
+                probability=float(probability),
+                count=int(count),
+                weight=float(probability),
+                edge_type="assignment_transition",
+                label="assignment_transition",
+            )
+    graph.graph["source"] = "bottleneck_assignment_transitions"
+    return graph
+
+
+def aggregate_bottleneck_graphs(
+    graphs: list[nx.Graph],
+    *,
+    min_edge_frequency: float = 0.0,
+    top_k_per_source: int | None = None,
+) -> nx.DiGraph:
+    """Aggregate predicted bottleneck edge graphs over a dataset."""
+
+    n_graphs = max(1, len(graphs))
+    nodes: set[int] = set()
+    node_mass: dict[int, float] = {}
+    node_seen: dict[int, int] = {}
+    edge_score: dict[tuple[int, int], float] = {}
+    edge_seen: dict[tuple[int, int], int] = {}
+
+    for graph in graphs:
+        for _, attrs in graph.nodes(data=True):
+            proto = int(attrs.get("prototype_id"))
+            nodes.add(proto)
+            node_mass[proto] = node_mass.get(proto, 0.0) + float(attrs.get("assignment_mass", 0.0))
+            node_seen[proto] = node_seen.get(proto, 0) + 1
+        for u, v, attrs in graph.edges(data=True):
+            src = int(graph.nodes[u].get("prototype_id", u))
+            dst = int(graph.nodes[v].get("prototype_id", v))
+            edge = (src, dst)
+            edge_score[edge] = edge_score.get(edge, 0.0) + float(
+                attrs.get("probability", attrs.get("weight", 1.0))
+            )
+            edge_seen[edge] = edge_seen.get(edge, 0) + 1
+
+    out = nx.DiGraph()
+    for proto in sorted(nodes):
+        out.add_node(
+            proto,
+            prototype_id=proto,
+            assignment_mass=node_mass.get(proto, 0.0) / float(max(1, node_seen.get(proto, 0))),
+            label=proto,
+        )
+
+    outgoing: dict[int, list[tuple[float, int, float, float]]] = {}
+    for (src, dst), total in edge_score.items():
+        frequency = edge_seen[(src, dst)] / float(n_graphs)
+        if frequency < float(min_edge_frequency):
+            continue
+        probability = total / float(max(1, edge_seen[(src, dst)]))
+        score = probability * frequency
+        outgoing.setdefault(src, []).append((score, dst, probability, frequency))
+
+    for src, candidates in outgoing.items():
+        selected = sorted(candidates, reverse=True)
+        if top_k_per_source is not None:
+            selected = selected[: int(top_k_per_source)]
+        for score, dst, probability, frequency in selected:
+            out.add_edge(
+                src,
+                dst,
+                probability=float(probability),
+                frequency=float(frequency),
+                weight=float(score),
+                edge_type="predicted_bottleneck_edge",
+                label="predicted_bottleneck_edge",
+            )
+    out.graph["source"] = "aggregated_graph_interpretation_bottleneck"
+    out.graph["graph_kind"] = "aggregated_predicted_bottleneck_edges"
+    return out
+
+
+def collapse_graph_to_states(
+    graph: nx.Graph,
+    prototype_to_state: dict[int, int],
+    n_states: int,
+    *,
+    top_k_per_source: int | None = None,
+) -> nx.DiGraph:
+    """Collapse a prototype graph into hidden-state space using a post-hoc mapping."""
+
+    collapsed = nx.DiGraph()
+    for state in range(int(n_states)):
+        collapsed.add_node(state, label=state)
+
+    edge_scores: dict[tuple[int, int], float] = {}
+    edge_counts: dict[tuple[int, int], int] = {}
+    for u, v, attrs in graph.edges(data=True):
+        src_proto = int(graph.nodes[u].get("prototype_id", u))
+        dst_proto = int(graph.nodes[v].get("prototype_id", v))
+        if src_proto not in prototype_to_state or dst_proto not in prototype_to_state:
+            continue
+        src_state = int(prototype_to_state[src_proto])
+        dst_state = int(prototype_to_state[dst_proto])
+        score = float(attrs.get("probability", attrs.get("weight", 1.0)))
+        edge = (src_state, dst_state)
+        edge_scores[edge] = edge_scores.get(edge, 0.0) + score
+        edge_counts[edge] = edge_counts.get(edge, 0) + 1
+
+    outgoing: dict[int, list[tuple[float, int]]] = {}
+    for (src, dst), total in edge_scores.items():
+        score = total / float(max(1, edge_counts[(src, dst)]))
+        outgoing.setdefault(src, []).append((score, dst))
+
+    for src, candidates in outgoing.items():
+        selected = sorted(candidates, reverse=True)
+        if top_k_per_source is not None:
+            selected = selected[: int(top_k_per_source)]
+        for score, dst in selected:
+            collapsed.add_edge(src, dst, probability=float(score), weight=float(score))
+    collapsed.graph["source"] = "collapsed_bottleneck_graph"
+    return collapsed
+
+
+def edge_recovery_diagnostics(
+    true_graph: nx.Graph,
+    score_graph: nx.Graph,
+    *,
+    n_states: int | None = None,
+    probability_key: str = "probability",
+) -> dict[str, float | bool]:
+    """Compare a scored recovered graph against a true state-transition graph."""
+
+    if n_states is None:
+        nodes = sorted(set(true_graph.nodes()) | set(score_graph.nodes()))
+    else:
+        nodes = list(range(int(n_states)))
+    true_edges = set(true_graph.edges())
+    predicted_edges = set(score_graph.edges())
+    y_true: list[int] = []
+    y_score: list[float] = []
+    for src in nodes:
+        for dst in nodes:
+            y_true.append(1 if (src, dst) in true_edges else 0)
+            y_score.append(
+                float(score_graph.edges[src, dst].get(probability_key, 1.0))
+                if score_graph.has_edge(src, dst)
+                else 0.0
+            )
+
+    overlap = len(true_edges & predicted_edges)
+    if len(set(y_true)) < 2:
+        auroc = 0.5
+    else:
+        try:
+            auroc = float(roc_auc_score(y_true, y_score))
+        except ValueError:
+            auroc = 0.5
+    if not np.isfinite(auroc):
+        auroc = 0.5
+    return {
+        "edge_precision": overlap / float(max(1, len(predicted_edges))),
+        "edge_recall": overlap / float(max(1, len(true_edges))),
+        "edge_auroc": auroc,
+        "edge_symmetric_difference": float(len(true_edges ^ predicted_edges)),
+        "vf2_isomorphic_unlabelled": bool(nx.is_isomorphic(true_graph, score_graph)),
+    }
+
+
+def evaluate_automaton_recovery(
+    learned_assignments: list[np.ndarray] | np.ndarray,
+    hidden_states: list[np.ndarray] | np.ndarray,
+    *,
+    learned_graph: nx.Graph | None = None,
+    automaton: HiddenAutomaton | None = None,
+    transition_threshold: float = 0.0,
+) -> dict[str, float]:
+    """Compute diagnostic latent-state and edge-recovery metrics."""
+
+    diagnostics = state_assignment_diagnostics(learned_assignments, hidden_states)
+    metrics: dict[str, float] = dict(diagnostics["metrics"])
+
     if learned_graph is not None and automaton is not None:
-        majority_state = {
-            int(pred_labels[row]): int(true_labels[int(np.argmax(counts[row]))])
-            for row in range(counts.shape[0])
-        }
-        learned_edges = set()
-        for u, v in learned_graph.edges():
-            src_proto = int(learned_graph.nodes[u].get("prototype_id", u))
-            dst_proto = int(learned_graph.nodes[v].get("prototype_id", v))
-            if src_proto in majority_state and dst_proto in majority_state:
-                learned_edges.add((majority_state[src_proto], majority_state[dst_proto]))
-        true_edges = {
-            (src, dst)
-            for src in range(automaton.n_states)
-            for dst in range(automaton.n_states)
-            if float(automaton.transition_probs[src, dst]) > float(transition_threshold)
-        }
-        overlap = len(learned_edges & true_edges)
-        metrics["edge_precision"] = overlap / float(max(1, len(learned_edges)))
-        metrics["edge_recall"] = overlap / float(max(1, len(true_edges)))
+        collapsed = collapse_graph_to_states(
+            learned_graph,
+            diagnostics["majority_state"],
+            automaton.n_states,
+        )
+        metrics.update(
+            edge_recovery_diagnostics(
+                automaton.transition_graph(threshold=transition_threshold),
+                collapsed,
+                n_states=automaton.n_states,
+            )
+        )
 
     return metrics
