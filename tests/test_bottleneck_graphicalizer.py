@@ -42,6 +42,8 @@ class BottleneckGraphicalizerTest(unittest.TestCase):
             "loss_binary",
             "loss_entropy",
             "loss_transition",
+            "loss_transition_bce",
+            "loss_transition_kl",
             "loss_balance",
         }:
             self.assertIn(key, output.losses)
@@ -128,6 +130,7 @@ class BottleneckGraphicalizerTest(unittest.TestCase):
         self.assertTrue(all(graph.graph["source"] == "graph_interpretation_bottleneck" for graph in graphs))
         self.assertEqual(len(graphicalizer.training_history_), 1)
         self.assertIn("loss_transition", graphicalizer.training_history_[0])
+        self.assertIn("loss_transition_bce", graphicalizer.training_history_[0])
 
     def test_message_edge_modes_forward(self) -> None:
         for mode in {"learned", "transition", "dense", "random", "none"}:

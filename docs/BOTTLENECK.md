@@ -62,6 +62,17 @@ edges to agree with observed sequence transitions without using hidden automaton
 state labels. `lambda_balance > 0` adds a simple prototype load-balancing term
 that reduces prototype collapse in small synthetic benchmarks.
 
+The edge module has two transition-aware heads:
+
+- edge-existence logits trained with `lambda_transition_bce`, using observed
+  prototype transitions as binary self-supervised targets;
+- outgoing transition logits trained with `lambda_transition_kl`, using the
+  normalized prototype-transition distribution as a self-supervised target.
+
+When either of these transition-aware losses is enabled, exported predicted
+edge scores are calibrated by both edge existence and outgoing transition
+probability.
+
 The message-passing graph can be ablated with `message_edge_mode`:
 
 - `learned`: use the learned sparse edge predictor.
