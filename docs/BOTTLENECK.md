@@ -130,3 +130,8 @@ See `notebooks/examples/example_bottleneck_hidden_automaton.ipynb` for an
 executable visualization notebook with side-by-side plots of the true automaton,
 the learned prototype graph, and the learned graph collapsed back to inferred
 hidden states.
+
+See `notebooks/examples/example_bottleneck_probabilistic_automata_benchmark.ipynb`
+for the stronger transformer-based benchmark with distinctive and ambiguous
+probabilistic automata, ARI/NMI state-recovery metrics, edge precision/recall,
+edge AUROC, and graph-isomorphism diagnostics.
