@@ -113,6 +113,8 @@ class GraphInterpretationBottleneck(nn.Module):
         lambda_sparse: float = 0.01,
         lambda_binary: float = 0.01,
         lambda_entropy: float = 0.01,
+        lambda_transition: float = 0.0,
+        lambda_balance: float = 0.0,
         active_mass_threshold: float = 1e-6,
         eps: float = 1e-8,
     ) -> None:
@@ -129,6 +131,8 @@ class GraphInterpretationBottleneck(nn.Module):
         self.lambda_sparse = float(lambda_sparse)
         self.lambda_binary = float(lambda_binary)
         self.lambda_entropy = float(lambda_entropy)
+        self.lambda_transition = float(lambda_transition)
+        self.lambda_balance = float(lambda_balance)
         self.active_mass_threshold = float(active_mass_threshold)
         self.eps = float(eps)
 
@@ -166,14 +170,17 @@ class GraphInterpretationBottleneck(nn.Module):
         node_embeddings = torch.matmul(assignments.transpose(0, 1), x) / mass.unsqueeze(-1)
         return assignments, node_embeddings, mass
 
-    def _edge_probabilities(self, z: torch.Tensor) -> torch.Tensor:
+    def _dense_edge_probabilities(self, z: torch.Tensor) -> torch.Tensor:
         k, d_model = z.shape
         zi = z[:, None, :].expand(k, k, d_model)
         zj = z[None, :, :].expand(k, k, d_model)
         pair = torch.cat([zi, zj, torch.abs(zi - zj), zi * zj], dim=-1)
         logits = self.edge_mlp(pair).squeeze(-1)
         logits = logits.masked_fill(torch.eye(k, dtype=torch.bool, device=z.device), -1e9)
-        prob = torch.sigmoid(logits)
+        return torch.sigmoid(logits)
+
+    def _sparsify_edge_probabilities(self, prob: torch.Tensor) -> torch.Tensor:
+        k = prob.shape[0]
         if k <= 1:
             return torch.zeros_like(prob)
         top_k = min(max(1, self.top_k_edges), k - 1)
@@ -181,6 +188,9 @@ class GraphInterpretationBottleneck(nn.Module):
         keep = torch.zeros_like(prob)
         keep.scatter_(dim=-1, index=indices, value=1.0)
         return prob * keep
+
+    def _edge_probabilities(self, z: torch.Tensor) -> torch.Tensor:
+        return self._sparsify_edge_probabilities(self._dense_edge_probabilities(z))
 
     def forward(
         self,
@@ -214,7 +224,8 @@ class GraphInterpretationBottleneck(nn.Module):
 
         z_masked = node_embeddings.clone()
         z_masked[node_mask] = self.mask_token
-        edge_prob = self._edge_probabilities(z_masked)
+        dense_edge_prob = self._dense_edge_probabilities(z_masked)
+        edge_prob = self._sparsify_edge_probabilities(dense_edge_prob)
         edge_hard = (edge_prob > self.edge_threshold).to(edge_prob.dtype)
         adjacency = edge_hard.detach() - edge_prob.detach() + edge_prob
 
@@ -230,12 +241,23 @@ class GraphInterpretationBottleneck(nn.Module):
         loss_sparse = edge_prob.mean()
         loss_binary = (edge_prob * (1.0 - edge_prob)).mean()
         entropy = -(assignments * torch.log(assignments.clamp_min(self.eps))).sum(dim=-1).mean()
+        transition_target = torch.zeros_like(edge_prob)
+        if assignments.shape[0] > 1:
+            transition_target = torch.matmul(assignments[:-1].transpose(0, 1), assignments[1:])
+            transition_target = transition_target / transition_target.sum(dim=-1, keepdim=True).clamp_min(self.eps)
+        transition_pred = dense_edge_prob / dense_edge_prob.sum(dim=-1, keepdim=True).clamp_min(self.eps)
+        loss_transition = F.mse_loss(transition_pred, transition_target.detach())
+        load = assignments.mean(dim=0)
+        target_load = torch.full_like(load, 1.0 / float(self.num_prototypes))
+        loss_balance = F.mse_loss(load, target_load)
         loss = (
             self.lambda_node * loss_node
             + self.lambda_token * loss_token
             + self.lambda_sparse * loss_sparse
             + self.lambda_binary * loss_binary
             + self.lambda_entropy * entropy
+            + self.lambda_transition * loss_transition
+            + self.lambda_balance * loss_balance
         )
 
         active = mass > self.active_mass_threshold
@@ -254,6 +276,8 @@ class GraphInterpretationBottleneck(nn.Module):
                 "loss_sparse": loss_sparse,
                 "loss_binary": loss_binary,
                 "loss_entropy": entropy,
+                "loss_transition": loss_transition,
+                "loss_balance": loss_balance,
             },
             token_embeddings=x,
             reconstructed_token_embeddings=x_hat,
@@ -332,6 +356,11 @@ def bottleneck_output_to_networkx(
     graph.graph["assignments"] = assignments
     graph.graph["token_to_nodes"] = token_to_nodes
     graph.graph["active_prototype_ids"] = np.asarray(active_ids, dtype=int)
+    graph.graph["losses"] = {
+        key: float(value.detach().cpu())
+        for key, value in output.losses.items()
+        if hasattr(value, "detach") and value.dim() == 0
+    }
     if output.tokens is not None:
         graph.graph["tokens"] = output.tokens
     if output.input_id is not None:
@@ -373,6 +402,7 @@ class BottleneckGraphicalizer(GraphicalizerMixin):
         self.encoder_: nn.Module | None = None
         self.model_: GraphInterpretationBottleneck | None = None
         self._torch_device: torch.device | None = None
+        self.training_history_: list[dict[str, float]] = []
 
     def _resolve_device(self) -> torch.device:
         if self.device == "auto":
@@ -423,13 +453,21 @@ class BottleneckGraphicalizer(GraphicalizerMixin):
         self.model_.train()
         if self.encoder_ is not None:
             self.encoder_.train()
+        self.training_history_ = []
         for _ in range(int(self.n_epochs)):
+            epoch_losses: dict[str, float] = {}
+            n_steps = 0
             for instance in instances:
                 optimizer.zero_grad(set_to_none=True)
                 embeddings = self._embed(instance)
                 output = self.model_(embeddings)
                 output.losses["loss"].backward()
                 optimizer.step()
+                n_steps += 1
+                for key, value in output.losses.items():
+                    epoch_losses[key] = epoch_losses.get(key, 0.0) + float(value.detach().cpu())
+            if n_steps > 0:
+                self.training_history_.append({key: value / n_steps for key, value in epoch_losses.items()})
         return self
 
     def transform(self, X, y=None) -> list[nx.Graph]:

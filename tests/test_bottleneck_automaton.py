@@ -84,10 +84,11 @@ class BottleneckAutomatonTest(unittest.TestCase):
         self.assertEqual(diagnostics["metrics"]["nmi"], 1.0)
         self.assertEqual(diagnostics["prototypes_per_state"], {0: 1, 1: 1, 2: 1})
 
-        transition_graph = transition_graph_from_assignments(learned)
+        transition_graph = transition_graph_from_assignments(learned, tokens=[np.array([0, 1, 2, 0, 1, 2])])
         self.assertIsInstance(transition_graph, nx.DiGraph)
         self.assertTrue(transition_graph.has_edge(10, 11))
         self.assertEqual(transition_graph.edges[10, 11]["edge_type"], "assignment_transition")
+        self.assertEqual(transition_graph.edges[10, 11]["top_symbol"], 1)
 
         collapsed = collapse_graph_to_states(
             transition_graph,

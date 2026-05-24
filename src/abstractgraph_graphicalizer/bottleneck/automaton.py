@@ -235,6 +235,7 @@ def state_assignment_diagnostics(
 def transition_graph_from_assignments(
     learned_assignments: list[np.ndarray] | np.ndarray,
     *,
+    tokens: list[np.ndarray] | np.ndarray | None = None,
     top_k_per_source: int | None = None,
     min_count: int = 1,
 ) -> nx.DiGraph:
@@ -245,15 +246,30 @@ def transition_graph_from_assignments(
         if isinstance(learned_assignments, np.ndarray) and learned_assignments.ndim == 1
         else [np.asarray(x).reshape(-1) for x in learned_assignments]
     )
+    token_sequences = None
+    if tokens is not None:
+        token_sequences = (
+            [np.asarray(tokens).reshape(-1)]
+            if isinstance(tokens, np.ndarray) and tokens.ndim == 1
+            else [np.asarray(x).reshape(-1) for x in tokens]
+        )
+        if len(token_sequences) != len(sequences):
+            raise ValueError("tokens must have the same number of sequences as learned_assignments")
     nodes: set[int] = set()
     edge_counts: dict[tuple[int, int], int] = {}
+    edge_symbols: dict[tuple[int, int], dict[Any, int]] = {}
     outgoing_counts: dict[int, int] = {}
-    for sequence in sequences:
+    for sequence_idx, sequence in enumerate(sequences):
         values = [int(x) for x in sequence]
         nodes.update(values)
-        for src, dst in zip(values[:-1], values[1:]):
+        symbols = None if token_sequences is None else token_sequences[sequence_idx]
+        for pos, (src, dst) in enumerate(zip(values[:-1], values[1:])):
             edge_counts[(src, dst)] = edge_counts.get((src, dst), 0) + 1
             outgoing_counts[src] = outgoing_counts.get(src, 0) + 1
+            if symbols is not None:
+                symbol = symbols[pos + 1].item() if hasattr(symbols[pos + 1], "item") else symbols[pos + 1]
+                symbol_counts = edge_symbols.setdefault((src, dst), {})
+                symbol_counts[symbol] = symbol_counts.get(symbol, 0) + 1
 
     graph = nx.DiGraph()
     for node in sorted(nodes):
@@ -271,6 +287,10 @@ def transition_graph_from_assignments(
         if top_k_per_source is not None:
             selected = selected[: int(top_k_per_source)]
         for probability, dst, count in selected:
+            symbol_counts = edge_symbols.get((src, dst), {})
+            top_symbol = None
+            if symbol_counts:
+                top_symbol = max(symbol_counts.items(), key=lambda item: item[1])[0]
             graph.add_edge(
                 src,
                 dst,
@@ -278,6 +298,8 @@ def transition_graph_from_assignments(
                 count=int(count),
                 weight=float(probability),
                 edge_type="assignment_transition",
+                edge_label_counts=dict(symbol_counts),
+                top_symbol=top_symbol,
                 label="assignment_transition",
             )
     graph.graph["source"] = "bottleneck_assignment_transitions"

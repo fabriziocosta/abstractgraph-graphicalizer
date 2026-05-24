@@ -55,6 +55,13 @@ edge sparsity, edge binarization, and assignment entropy. This encourages the
 graph to become a compressed predictive relational structure rather than a
 similarity graph.
 
+For ordered sequence inputs, the model can also use an optional self-supervised
+transition-alignment loss by setting `lambda_transition > 0`. This builds a soft
+target from consecutive prototype assignments, encouraging predicted bottleneck
+edges to agree with observed sequence transitions without using hidden automaton
+state labels. `lambda_balance > 0` adds a simple prototype load-balancing term
+that reduces prototype collapse in small synthetic benchmarks.
+
 ## Output schema
 
 `BottleneckGraphicalizer.transform(X)` returns NetworkX graphs. By default it
@@ -167,4 +174,6 @@ edge AUROC, and graph-isomorphism diagnostics.
 - Predicted bottleneck edges and assignment-transition edges should be evaluated
   separately because they answer different questions.
 - Edge labels are currently generic predictive relations. Labelled transition
-  recovery is a future extension rather than a current guarantee.
+  recovery is diagnostic: assignment-transition graphs can record emitted-symbol
+  counts per edge, while predicted bottleneck edges still use generic predictive
+  edge labels.
