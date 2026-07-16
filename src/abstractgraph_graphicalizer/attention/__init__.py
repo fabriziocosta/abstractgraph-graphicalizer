@@ -2,11 +2,19 @@
 
 _attention_import_error = None
 try:
-    from abstractgraph_graphicalizer.attention.preprocessor import AbstractGraphPreprocessor, ImageNodeClusterer
+    from abstractgraph_graphicalizer.attention.preprocessor import (
+        AbstractGraphPreprocessor,
+        ImageNodeClusterer,
+        build_preimage_edges_from_attention,
+    )
 except (ImportError, OSError) as exc:
     _attention_import_error = exc
 
-__all__ = ["AbstractGraphPreprocessor", "ImageNodeClusterer"]
+__all__ = [
+    "AbstractGraphPreprocessor",
+    "ImageNodeClusterer",
+    "build_preimage_edges_from_attention",
+]
 
 
 def __getattr__(name: str):
