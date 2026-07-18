@@ -62,6 +62,24 @@ from abstractgraph_graphicalizer.rna import (
     seq_to_graph,
     sequence_dotbracket_to_graph,
 )
+from abstractgraph_graphicalizer.bottleneck import (
+    BottleneckGraphicalizer,
+    BottleneckOutput,
+    GraphInterpretationBottleneck,
+    HiddenAutomaton,
+    TinySequenceTransformer,
+    aggregate_bottleneck_graphs,
+    bottleneck_output_to_networkx,
+    collapse_graph_to_states,
+    edge_recovery_diagnostics,
+    evaluate_automaton_recovery,
+    extract_sequence_embeddings,
+    generate_automaton_sequences,
+    sample_hidden_automaton,
+    state_assignment_diagnostics,
+    train_tiny_sequence_transformer,
+    transition_graph_from_assignments,
+)
 
 _ATTENTION_EXPORTS = {
     "AbstractGraphPreprocessor",
@@ -76,7 +94,23 @@ except (ImportError, OSError) as exc:
 
 __all__ = [
     "AbstractGraphPreprocessor",
+    "BottleneckGraphicalizer",
+    "BottleneckOutput",
     "ImageNodeClusterer",
+    "GraphInterpretationBottleneck",
+    "HiddenAutomaton",
+    "TinySequenceTransformer",
+    "aggregate_bottleneck_graphs",
+    "bottleneck_output_to_networkx",
+    "collapse_graph_to_states",
+    "edge_recovery_diagnostics",
+    "evaluate_automaton_recovery",
+    "extract_sequence_embeddings",
+    "generate_automaton_sequences",
+    "sample_hidden_automaton",
+    "state_assignment_diagnostics",
+    "train_tiny_sequence_transformer",
+    "transition_graph_from_assignments",
     "MoleculeGraphicalizer",
     "CHEM_NODE_SCHEMA",
     "CHEM_EDGE_SCHEMA",

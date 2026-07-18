@@ -1,5 +1,10 @@
 # Attention Graphicalizers
 
+This backend is retained for compatibility and lightweight attention-derived
+graph extraction. For new learned graphicalization work on transformer/token
+embeddings, prefer the graph interpretation bottleneck backend described in
+[BOTTLENECK.md](BOTTLENECK.md).
+
 The attention backend converts token-level numeric inputs into labeled
 `networkx` graphs by learning token embeddings and extracting robust
 co-clustering structure from attention.
