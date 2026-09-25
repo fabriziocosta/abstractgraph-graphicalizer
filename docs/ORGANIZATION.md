@@ -26,6 +26,7 @@ For the semantic role of this repository, see [../README.md](../README.md).
 - [RNA.md](RNA.md)
 - [PROTEIN.md](PROTEIN.md)
 - [IMAGE.md](IMAGE.md)
+- [TEXT.md](TEXT.md)
 
 ## Install
 
@@ -47,6 +48,12 @@ Chemistry extras:
 python -m pip install -e '.[chem]'
 ```
 
+Text extras:
+
+```bash
+python -m pip install -e '.[text]'
+```
+
 ## Dependencies
 
 Runtime dependencies declared in `pyproject.toml`:
@@ -64,6 +71,10 @@ Optional chemistry dependency:
 
 - `rdkit`
 
+Optional text dependency:
+
+- `spacy` (dependency parsing; install a language model separately)
+
 ## Caveats
 
 - This package intentionally does not depend on the core `abstractgraph`
@@ -73,6 +84,8 @@ Optional chemistry dependency:
   inputs and model outputs.
 - RDKit can be easiest to install from conda-forge. Use the `chem` extra only
   when chemistry graphicalizers are needed.
+- Text dependency parsing is available from `abstractgraph_graphicalizer.text`;
+  install the `text` extra and a spaCy language model to use it.
 - Install with `--no-deps` only in a shared ecosystem environment where runtime
   dependencies are already managed.
 

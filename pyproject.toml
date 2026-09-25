@@ -23,6 +23,9 @@ dependencies = [
 chem = [
   "rdkit>=2023.9.1",
 ]
+text = [
+  "spacy>=3.7",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

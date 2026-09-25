@@ -62,6 +62,11 @@ from abstractgraph_graphicalizer.rna import (
     seq_to_graph,
     sequence_dotbracket_to_graph,
 )
+from abstractgraph_graphicalizer.text import (
+    display_dependency,
+    render_dependency_displacy,
+    sentence_dependency_graph,
+)
 
 _ATTENTION_EXPORTS = {
     "AbstractGraphPreprocessor",
@@ -114,6 +119,9 @@ __all__ = [
     "rnafold_to_graphs",
     "make_reverse_complement_graph",
     "read_fasta",
+    "sentence_dependency_graph",
+    "render_dependency_displacy",
+    "display_dependency",
     "ImageSegmentGraphicalizer",
     "extract_geometric_relations_graph",
     "visualize_scene_graph_on_image",

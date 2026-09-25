@@ -84,6 +84,14 @@ utilities around segmented image inputs.
 
 See [docs/IMAGE.md](docs/IMAGE.md).
 
+### Text Graphicalizers
+
+The text backend builds dependency graphs from spaCy parses, with tokens as
+nodes and grammatical relations as directed edges. Install the `text` extra
+and a spaCy language model to use it.
+
+See [docs/TEXT.md](docs/TEXT.md).
+
 ## Ecosystem
 
 See the [AbstractGraph ecosystem README](../../README.md) for how this
