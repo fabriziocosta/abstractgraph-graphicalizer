@@ -45,12 +45,14 @@ python -m pip install -e repos/abstractgraph-graphicalizer --no-deps
 Chemistry extras:
 
 ```bash
+# Run from repos/abstractgraph-graphicalizer/
 python -m pip install -e '.[chem]'
 ```
 
 Text extras:
 
 ```bash
+# Run from repos/abstractgraph-graphicalizer/
 python -m pip install -e '.[text]'
 ```
 
