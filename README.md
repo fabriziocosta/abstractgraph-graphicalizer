@@ -1,3 +1,5 @@
+[![All versions DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24367221.svg)](https://doi.org/10.5281/zenodo.24367221)
+
 <p align="center">
   <img src="docs/assets/AG_Logo.png" alt="AbstractGraph logo" width="220">
 </p>
@@ -13,11 +15,6 @@ NetworkX graphs. Those graphs can then be used directly or handed to
 
 For package layout, local setup, validation commands, and documentation index,
 see [docs/ORGANIZATION.md](docs/ORGANIZATION.md).
-
-## Zenodo
-
-[![Version DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24367222.svg)](https://doi.org/10.5281/zenodo.24367222)
-[![All versions DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24367221.svg)](https://doi.org/10.5281/zenodo.24367221)
 
 ## Semantic Role
 
