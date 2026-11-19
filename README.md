@@ -14,6 +14,11 @@ NetworkX graphs. Those graphs can then be used directly or handed to
 For package layout, local setup, validation commands, and documentation index,
 see [docs/ORGANIZATION.md](docs/ORGANIZATION.md).
 
+## Zenodo
+
+Version 0.1.0: [10.5281/zenodo.24367222](https://doi.org/10.5281/zenodo.24367222)  
+All versions: [10.5281/zenodo.24367221](https://doi.org/10.5281/zenodo.24367221)
+
 ## Semantic Role
 
 This package answers the first graph question: what is the graph implied by the
