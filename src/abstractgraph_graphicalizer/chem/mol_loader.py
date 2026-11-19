@@ -15,6 +15,7 @@ import requests
 
 from abstractgraph_graphicalizer.chem.molecules import (
     MoleculeParseError,
+    normalize_bond_label,
     normalize_graph_schema,
     smiles_to_graph,
 )
@@ -204,9 +205,6 @@ def resolve_cache_root(dataset_dir: Path, csv_path: Path | str | None = None) ->
         )
         if len(candidates) == 1:
             return dataset_cache_root(dataset_dir, candidates[0])
-    legacy_corpus_dir = dataset_dir / "graph_corpus"
-    if legacy_corpus_dir.exists():
-        return dataset_dir
     raise FileNotFoundError(
         "Could not infer a unique dataset cache. Pass a dataset root that contains exactly one "
         "cached dataset or use the loader `.load(...)` API."
@@ -270,39 +268,21 @@ def normalize_corpus_manifest(cache_root: Path, manifest: dict) -> tuple[dict, b
     return normalized, changed
 
 
-def normalize_legacy_graph_item(item: object) -> tuple[nx.Graph, dict]:
-    """Normalize one cached `(graph, metadata)` pair."""
-    if not isinstance(item, tuple) or len(item) != 2:
-        raise ValueError("Unsupported cached graph item format.")
-    graph, row = item
-    if not isinstance(graph, nx.Graph):
-        raise ValueError("Unsupported cached graph payload.")
-    row_dict = dict(row)
-    return normalize_graph_schema(graph, copy=False), row_dict
-
-
-def normalize_bucket_items(items: object) -> tuple[list[tuple[nx.Graph, dict]], bool]:
-    """Normalize legacy cache bucket payloads into the current list-of-tuples format."""
-    if isinstance(items, list):
-        normalized_items = [normalize_legacy_graph_item(item) for item in items]
-        changed = any(
-            normalized_items[idx][0] is not items[idx][0] or normalized_items[idx][1] is not items[idx][1]
-            for idx in range(len(normalized_items))
-        )
-        return normalized_items, changed
-    if isinstance(items, dict) and "graphs" in items and "metadata" in items:
-        graphs = list(items["graphs"])
-        metadata = items["metadata"]
-        if isinstance(metadata, pd.DataFrame):
-            rows = metadata.to_dict(orient="records")
-        elif isinstance(metadata, list):
-            rows = [dict(row) for row in metadata]
-        else:
-            raise ValueError("Unsupported legacy cached metadata format.")
-        if len(graphs) != len(rows):
-            raise ValueError("Legacy cached graphs and metadata lengths differ.")
-        return [(normalize_graph_schema(graph, copy=False), row) for graph, row in zip(graphs, rows)], True
-    raise ValueError("Unsupported cached graph bucket format.")
+def validate_bucket_items(items: object) -> list[tuple[nx.Graph, dict]]:
+    """Validate a graph bucket in the current list-of-(graph, metadata) format."""
+    if not isinstance(items, list):
+        raise ValueError("Unsupported cached graph bucket format; expected a list.")
+    validated = []
+    for item in items:
+        if not isinstance(item, tuple) or len(item) != 2:
+            raise ValueError("Unsupported cached graph item; expected (graph, metadata).")
+        graph, row = item
+        if not isinstance(graph, nx.Graph) or not isinstance(row, dict):
+            raise ValueError("Cached graph items must contain a NetworkX graph and metadata dict.")
+        for _, _, data in graph.edges(data=True):
+            data["label"] = normalize_bond_label(data.get("label", ""), aromatic=bool(data.get("aromatic", False)))
+        validated.append(item)
+    return validated
 
 
 def build_graph_corpus(
@@ -396,7 +376,8 @@ def load_graph_dataset(
         for bucket_path in bucket_paths:
             with bucket_path.open("rb") as handle:
                 items = pickle.load(handle)
-            normalized_items, bucket_changed = normalize_bucket_items(items)
+            normalized_items = validate_bucket_items(items)
+            bucket_changed = False
             if bucket_changed:
                 with bucket_path.open("wb") as handle:
                     pickle.dump(normalized_items, handle)
@@ -529,8 +510,6 @@ class SupervisedDatasetLoader:
             targets = self.binarize_regression(targets)
         return data, targets
 
-
-SupervisedDataSetLoader = SupervisedDatasetLoader
 
 
 class CSVMoleculeLoader(Generic[DatasetPathsT, DatasetSummaryT]):

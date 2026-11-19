@@ -19,7 +19,6 @@ from abstractgraph_graphicalizer.chem.molecules import (
 )
 from abstractgraph_graphicalizer.chem.mol_loader import (
     MolecularGraphSourceLoader,
-    SupervisedDataSetLoader,
     SupervisedDatasetLoader,
 )
 from abstractgraph_graphicalizer.chem.gdb import (
@@ -107,7 +106,6 @@ __all__ = [
     "PubChemLoader",
     "DEFAULT_GDB_MODE",
     "MolecularGraphSourceLoader",
-    "SupervisedDataSetLoader",
     "SupervisedDatasetLoader",
     "DEFAULT_QM9_TARGET_COLUMNS",
     "DEFAULT_ZINC_TARGET_COLUMNS",

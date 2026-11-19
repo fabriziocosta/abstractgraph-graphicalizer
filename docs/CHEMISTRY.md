@@ -75,10 +75,9 @@ Invalid `on_error` modes raise `ValueError`.
 
 ## Round-trip support
 
-`graph_to_rdmol` supports the canonical edge labels above and also accepts the
-legacy numeric labels `1`, `2`, `3`, and `4` for compatibility with older
-graphs. `normalize_graph_schema(...)` upgrades legacy graph edge labels to the
-canonical schema in-memory.
+`graph_to_rdmol` accepts canonical textual labels: `single`, `double`, `triple`,
+and `aromatic`. `normalize_graph_schema(...)` validates these labels and fills
+missing chemistry metadata.
 
 ## PubChem Assay Exports
 
@@ -340,6 +339,5 @@ Converted GDB graphs are cached under:
 Large modes should be treated as streaming-style workflows. Avoid assuming the
 full archive will fit comfortably in memory.
 
-The chemistry package also exports `SupervisedDatasetLoader` and the legacy
-camel-case alias `SupervisedDataSetLoader` for notebook-scale resizing,
+The chemistry package also exports `SupervisedDatasetLoader` for notebook-scale resizing,
 equalization, and binary-target shaping.

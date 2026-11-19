@@ -79,42 +79,7 @@ _BOND_LABEL_TO_TYPE = {
     "double": "DOUBLE",
     "triple": "TRIPLE",
     "aromatic": "AROMATIC",
-    "1": "SINGLE",
-    "2": "DOUBLE",
-    "3": "TRIPLE",
-    "4": "AROMATIC",
-    "singlebond": "SINGLE",
-    "doublebond": "DOUBLE",
-    "triplebond": "TRIPLE",
-    "aromaticbond": "AROMATIC",
-    "single bond": "SINGLE",
-    "double bond": "DOUBLE",
-    "triple bond": "TRIPLE",
-    "aromatic bond": "AROMATIC",
 }
-_LEGACY_BOND_LABEL_MAP = {
-    "1": "single",
-    "2": "double",
-    "3": "triple",
-    "4": "aromatic",
-    "single": "single",
-    "double": "double",
-    "triple": "triple",
-    "aromatic": "aromatic",
-    "singlebond": "single",
-    "doublebond": "double",
-    "triplebond": "triple",
-    "aromaticbond": "aromatic",
-    "single bond": "single",
-    "double bond": "double",
-    "triple bond": "triple",
-    "aromatic bond": "aromatic",
-    "singlebondtype": "single",
-    "doublebondtype": "double",
-    "triplebondtype": "triple",
-    "aromaticbondtype": "aromatic",
-}
-
 
 def _normalize_on_error(on_error: str) -> str:
     if on_error not in _SUPPORTED_ON_ERROR:
@@ -142,16 +107,13 @@ def _bond_type_from_label(label: object):
 
 
 def normalize_bond_label(label: object, *, aromatic: bool = False) -> str:
-    """Map legacy chemistry edge labels to the canonical graphicalizer schema."""
+    """Validate and canonicalize a chemistry bond label."""
     if aromatic:
         return "aromatic"
-    normalized = str(label).strip()
-    if not normalized:
-        return "single"
-    mapped = _LEGACY_BOND_LABEL_MAP.get(normalized.lower())
-    if mapped is not None:
-        return mapped
-    raise MoleculeParseError("Unsupported bond label", normalized)
+    normalized = str(label).strip().lower()
+    if normalized in {"single", "double", "triple", "aromatic"}:
+        return normalized
+    raise MoleculeParseError("Unsupported bond label", str(label))
 
 
 def normalize_graph_schema(graph: nx.Graph, *, copy: bool = True) -> nx.Graph:

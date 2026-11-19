@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 
 from abstractgraph_graphicalizer.chem.mol_loader import (
-    SupervisedDataSetLoader,
     SupervisedDatasetLoader,
     dataset_cache_root,
     graph_corpus_dir,

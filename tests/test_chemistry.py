@@ -23,8 +23,8 @@ from abstractgraph_graphicalizer.chem import (
     MoleculeParseError,
     PubChemAssayLoader,
     QM9Loader,
-    SupervisedDataSetLoader,
     ZINCLoader,
+    SupervisedDatasetLoader,
     build_gdb_graph_corpus,
     build_qm9_graph_corpus,
     build_zinc_graph_corpus,
@@ -103,17 +103,28 @@ class ChemistryTest(unittest.TestCase):
         for source, target in graph.edges():
             self.assertEqual(bond_index[(source, target)], bond_index[(target, source)])
 
-    def test_normalize_graph_schema_upgrades_legacy_labels(self) -> None:
+    def test_normalize_graph_schema_rejects_noncanonical_bond_labels(self) -> None:
         graph = nx.Graph()
         graph.add_node(0, label="C")
         graph.add_node(1, label="O")
         graph.add_edge(0, 1, label="1")
 
-        normalized = normalize_graph_schema(graph)
+        with self.assertRaises(MoleculeParseError):
+            normalize_graph_schema(graph)
 
-        self.assertEqual(normalized.edges[(0, 1)]["label"], "single")
-        self.assertEqual(normalized.edges[(0, 1)]["bond_order"], 1.0)
-        self.assertEqual(normalized.edges[(0, 1)]["bond_type"], "SINGLE")
+    def test_graph_bucket_rejects_legacy_payload_shape(self) -> None:
+        from abstractgraph_graphicalizer.chem.mol_loader import validate_bucket_items
+
+        with self.assertRaisesRegex(ValueError, "expected a list"):
+            validate_bucket_items({"graphs": [], "metadata": []})
+
+    def test_graph_bucket_rejects_noncanonical_bond_labels(self) -> None:
+        from abstractgraph_graphicalizer.chem.mol_loader import validate_bucket_items
+
+        graph = nx.Graph()
+        graph.add_edge(0, 1, label="1")
+        with self.assertRaises(MoleculeParseError):
+            validate_bucket_items([(graph, {})])
 
     def test_smiles_list_skip_invalid_records(self) -> None:
         graphs = smiles_list_to_graphs(["CCO", "not-a-smiles", "C#N"], on_error="skip")
@@ -676,7 +687,7 @@ class ChemistryTest(unittest.TestCase):
         def load_func():
             return ["a", "b", "c", "d"], np.asarray([0, 0, 1, 1])
 
-        data, targets = SupervisedDataSetLoader(
+        data, targets = SupervisedDatasetLoader(
             load_func=load_func,
             size=2,
             use_equalized=True,
@@ -710,7 +721,7 @@ class ChemistryTest(unittest.TestCase):
             self.assertEqual(targets.tolist(), [1])
             self.assertEqual(metadata["node_count"].tolist(), [3])
 
-    def test_build_and_load_zinc_graph_corpus_normalizes_legacy_cache(self) -> None:
+    def test_build_and_load_zinc_graph_corpus_preserves_canonical_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             csv_path = root / "zinc_small.csv"
@@ -722,22 +733,14 @@ class ChemistryTest(unittest.TestCase):
             ).to_csv(csv_path, index=False)
 
             manifest = build_zinc_graph_corpus(root, csv_path)
-            bucket_path = root / "graph_corpus_cache" / "zinc_small" / manifest["bucket_files"][2]
-            with bucket_path.open("rb") as handle:
-                items = pickle.load(handle)
-            legacy_graph = items[0][0]
-            for _, _, data in legacy_graph.edges(data=True):
-                data["label"] = "1"
-                data.pop("bond_order", None)
-                data.pop("bond_type", None)
-            with bucket_path.open("wb") as handle:
-                pickle.dump(items, handle)
-
             graphs, metadata = load_zinc_graph_dataset(root, max_molecules=10)
 
             self.assertEqual(len(graphs), 2)
             self.assertEqual(sorted(metadata["zinc_id"].tolist()), ["z1", "z2"])
-            self.assertEqual(next(iter(graphs[0].edges(data=True)))[2]["label"], "single")
+            self.assertEqual(
+                {data["label"] for graph in graphs for _, _, data in graph.edges(data=True)},
+                {"single", "double"},
+            )
             self.assertTrue(
                 (root / "graph_corpus_cache" / "zinc_small" / "graph_corpus" / "manifest.pkl").exists()
             )
@@ -759,22 +762,14 @@ class ChemistryTest(unittest.TestCase):
             ).to_csv(csv_path, index=False)
 
             manifest = build_qm9_graph_corpus(root, csv_path)
-            bucket_path = root / "graph_corpus_cache" / "qm9" / manifest["bucket_files"][2]
-            with bucket_path.open("rb") as handle:
-                items = pickle.load(handle)
-            legacy_graph = items[0][0]
-            for _, _, data in legacy_graph.edges(data=True):
-                data["label"] = "1"
-                data.pop("bond_order", None)
-                data.pop("bond_type", None)
-            with bucket_path.open("wb") as handle:
-                pickle.dump(items, handle)
-
             graphs, metadata = load_qm9_graph_dataset(root, max_molecules=10, max_node_count=3)
 
             self.assertEqual(len(graphs), 2)
             self.assertEqual(sorted(metadata["mol_id"].tolist()), ["gdb_1", "gdb_2"])
-            self.assertEqual(next(iter(graphs[0].edges(data=True)))[2]["label"], "single")
+            self.assertEqual(
+                {data["label"] for graph in graphs for _, _, data in graph.edges(data=True)},
+                {"single", "double"},
+            )
             self.assertTrue(
                 (root / "graph_corpus_cache" / "qm9" / "graph_corpus" / "manifest.pkl").exists()
             )
