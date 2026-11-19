@@ -44,7 +44,7 @@ DEFAULT_QM9_TARGET_COLUMNS = (
 
 
 def bundled_qm9_root() -> Path:
-    """Return the tracked bundled QM9 dataset root."""
+    """Return the package-adjacent QM9 fallback root."""
     return Path(__file__).resolve().parents[3] / "data" / "QM9"
 
 

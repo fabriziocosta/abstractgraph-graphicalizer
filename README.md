@@ -29,6 +29,12 @@ downstream abstract graph operators are applied. It does not own decomposition,
 hashing, model training, or generation. Its job is to make different domains
 speak a common attributed-graph language.
 
+## Dataset Preparation
+
+See the [data preparation notebook guide](notebooks/README.md) for the fetch,
+cache, and downstream analysis order. Raw datasets and graph caches live in
+ignored `data-local/` folders rather than Git.
+
 ## Converter Families
 
 ### Attention Graphicalizers

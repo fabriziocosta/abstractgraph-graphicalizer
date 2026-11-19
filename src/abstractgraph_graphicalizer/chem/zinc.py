@@ -27,7 +27,7 @@ DEFAULT_ZINC_TARGET_COLUMNS = ("logP", "qed", "SAS")
 
 
 def bundled_zinc_root() -> Path:
-    """Return the tracked bundled ZINC dataset root."""
+    """Return the package-adjacent ZINC fallback root."""
     return Path(__file__).resolve().parents[3] / "data" / "ZINC"
 
 

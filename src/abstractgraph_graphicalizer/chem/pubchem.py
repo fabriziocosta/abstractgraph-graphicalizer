@@ -21,7 +21,7 @@ from abstractgraph_graphicalizer.chem.molecules import sdf_to_graphs
 
 
 def bundled_pubchem_root() -> Path:
-    """Return the tracked bundled PubChem dataset root."""
+    """Return the package-adjacent PubChem fallback root."""
     return Path(__file__).resolve().parents[3] / "data" / "PUBCHEM"
 
 

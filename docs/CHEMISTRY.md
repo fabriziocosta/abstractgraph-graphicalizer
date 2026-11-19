@@ -28,10 +28,10 @@ Conceptual split:
 This distinction is intentional. PubChem is not treated as "just another CSV
 dataset" because the primary loading unit is the assay, not the file row.
 
-For bundled roots under `data/<DATASET>/` and ignored roots under
-`data-local/<DATASET>/`, cached graph corpora are unified under the shared
-sibling directory `data/graph_corpus_cache/` or `data-local/graph_corpus_cache/`
-rather than nested separately inside each dataset folder.
+Raw datasets are prepared into ignored `data-local/<DATASET>/` folders. Their
+graph corpora are cached in the shared ignored directory
+`data-local/graph_corpus_cache/`. See the [notebook data preparation guide](../notebooks/README.md)
+for the fetch and analysis order.
 
 ## Canonical node attributes
 
@@ -86,24 +86,22 @@ missing chemistry metadata.
 - `AID<assay_id>_active.sdf`
 - `AID<assay_id>_inactive.sdf`
 
-The bundled Git-tracked sample location is:
-
-- `abstractgraph-graphicalizer/data/PUBCHEM/`
-
-For larger local assay collections, the preferred ignored location is:
+Prepared assay files are written to the ignored location:
 
 - `abstractgraph-graphicalizer/data-local/PUBCHEM/`
+
+Use [`prepare_pubchem_assay.ipynb`](../notebooks/data_preparation/prepare_pubchem_assay.ipynb)
+to fetch an AID as active and inactive SDF files.
 
 Resolution order is:
 
 1. the explicit `root=` passed to `PubChemAssayLoader(...)`
 2. `ABSTRACTGRAPH_PUBCHEM_ROOT`
 3. `abstractgraph-graphicalizer/data-local/PUBCHEM/`
-4. `abstractgraph-graphicalizer/data/PUBCHEM/`
+4. `abstractgraph-graphicalizer/data/PUBCHEM/` (optional user-managed fallback)
 
-The bundled dataset is intentionally a small Git-safe subset for examples and
-tests. Larger local assay exports should live in `data-local/PUBCHEM/` or an
-external directory pointed to by `ABSTRACTGRAPH_PUBCHEM_ROOT`.
+Raw assays are not stored in Git. Tests use temporary SDF fixtures; notebooks
+prepare the requested assay under `data-local/PUBCHEM/`.
 
 To inspect the currently resolved root and the available assay file sizes:
 
@@ -155,20 +153,15 @@ graphs, targets, metadata = load_pubchem_graph_dataset(
 - `zinc_250k.csv`
 - `zinc_small.csv`
 
-The bundled Git-tracked sample location is:
-
-- `abstractgraph-graphicalizer/data/ZINC/`
-
-For larger local ZINC datasets, the preferred ignored location is:
-
-- `abstractgraph-graphicalizer/data-local/ZINC/`
+The data preparation notebook downloads the default CSV into the ignored
+location `abstractgraph-graphicalizer/data-local/ZINC/`.
 
 Resolution order is:
 
 1. the explicit `root=` passed to `ZINCLoader(...)`
 2. `ABSTRACTGRAPH_ZINC_ROOT`
 3. `abstractgraph-graphicalizer/data-local/ZINC/`
-4. `abstractgraph-graphicalizer/data/ZINC/`
+4. `abstractgraph-graphicalizer/data/ZINC/` (optional user-managed fallback)
 
 Typical usage:
 
@@ -216,20 +209,15 @@ This writes the cached corpus under:
 
 - `qm9.csv`
 
-The bundled Git-tracked sample location is:
-
-- `abstractgraph-graphicalizer/data/QM9/`
-
-For larger local QM9 datasets, the preferred ignored location is:
-
-- `abstractgraph-graphicalizer/data-local/QM9/`
+The data preparation notebook downloads the default CSV into the ignored
+location `abstractgraph-graphicalizer/data-local/QM9/`.
 
 Resolution order is:
 
 1. the explicit `root=` passed to `QM9Loader(...)`
 2. `ABSTRACTGRAPH_QM9_ROOT`
 3. `abstractgraph-graphicalizer/data-local/QM9/`
-4. `abstractgraph-graphicalizer/data/QM9/`
+4. `abstractgraph-graphicalizer/data/QM9/` (optional user-managed fallback)
 
 If the default `qm9.csv` is requested and not present, `QM9Loader` can
 download it automatically.
@@ -296,7 +284,7 @@ Resolution order is:
 1. the explicit `root=` passed to `GDBLoader(...)`
 2. `ABSTRACTGRAPH_GDB_ROOT`
 3. `abstractgraph-graphicalizer/data-local/GDB/`
-4. `abstractgraph-graphicalizer/data/GDB/`
+4. `abstractgraph-graphicalizer/data/GDB/` (optional user-managed fallback)
 
 Important defaults:
 

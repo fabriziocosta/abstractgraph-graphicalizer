@@ -142,7 +142,7 @@ class GDBRecord:
 
 
 def bundled_gdb_root() -> Path:
-    """Return the tracked bundled GDB dataset root."""
+    """Return the package-adjacent GDB fallback root."""
     return Path(__file__).resolve().parents[3] / "data" / "GDB"
 
 

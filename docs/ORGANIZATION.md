@@ -19,6 +19,8 @@ For the semantic role of this repository, see [../README.md](../README.md).
 
 ## Documentation
 
+- [Notebook data preparation](../notebooks/README.md)
+
 - [ATTENTION.md](ATTENTION.md)
 - [CHEMISTRY.md](CHEMISTRY.md)
 - [GRAPH.md](GRAPH.md)
